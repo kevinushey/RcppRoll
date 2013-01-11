@@ -1,0 +1,5 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+behind_the_scenes/
+benchmark/
+ex/
