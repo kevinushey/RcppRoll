@@ -22,23 +22,40 @@ NumericVector roll_prod_numeric_vector( NumericVector x_, int n ) {
 }
 
 // [[Rcpp::export]]
-NumericMatrix roll_prod_numeric_matrix( NumericMatrix A_, int n ) {
+NumericMatrix roll_prod_numeric_matrix( NumericMatrix A_, int n, bool by_column ) {
 	
-	arma::mat A = as<arma::mat>(A_);
+	int nRow = A_.nrow();
+	int nCol = A_.ncol();
 	
-	int nRow = A.n_rows;
-	int nCol = A.n_cols;
+	arma::mat A(A_.begin(), nRow, nCol, false);
 	
-	arma::mat B( nRow - n + 1, nCol );
-	
-	for( int j=0; j < nCol; j++ ) {
+	if( by_column ) {
+		arma::mat B( nRow - n + 1, nCol );
 		
-		arma::vec tmp = A.col(j);
-		for( int i=0; i < nRow - n + 1; i++ ) {
-			B(i, j) = arma::prod( tmp.subvec( i, i+n-1 ) );
+		for( int j=0; j < nCol; j++ ) {
+			
+			arma::colvec tmp = A.col(j);
+			for( int i=0; i < nRow - n + 1; i++ ) {
+				B(i, j) = arma::prod( tmp.subvec( i, i+n-1 ) );
+			}
 		}
+		
+		return wrap(B);
+	
+	} else {
+		
+		arma::mat B( nRow, nCol - n + 1 );
+		
+		for( int i=0; i < nRow; i++ ) {
+			
+			arma::rowvec tmp = A.row(i);
+			for( int j=0; j < nCol - n + 1; j++ ) {
+				B(i, j) = arma::prod( tmp.subvec( j, j+n-1 ) );
+			}
+		}
+		
+		return wrap(B);
+	
 	}
-	
-	return wrap(B);
-	
+
 }

@@ -18,13 +18,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_max_numeric_matrix
-NumericMatrix roll_max_numeric_matrix(NumericMatrix A, int n);
-RcppExport SEXP RcppRoll_roll_max_numeric_matrix(SEXP ASEXP, SEXP nSEXP) {
+NumericMatrix roll_max_numeric_matrix(NumericMatrix A, int n, bool by_column);
+RcppExport SEXP RcppRoll_roll_max_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    NumericMatrix __result = roll_max_numeric_matrix(A, n);
+    bool by_column = Rcpp::as<bool >(by_columnSEXP);
+    NumericMatrix __result = roll_max_numeric_matrix(A, n, by_column);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -40,13 +41,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_mean_numeric_matrix
-NumericMatrix roll_mean_numeric_matrix(NumericMatrix A, int n);
-RcppExport SEXP RcppRoll_roll_mean_numeric_matrix(SEXP ASEXP, SEXP nSEXP) {
+NumericMatrix roll_mean_numeric_matrix(NumericMatrix A, int n, bool by_column);
+RcppExport SEXP RcppRoll_roll_mean_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    NumericMatrix __result = roll_mean_numeric_matrix(A, n);
+    bool by_column = Rcpp::as<bool >(by_columnSEXP);
+    NumericMatrix __result = roll_mean_numeric_matrix(A, n, by_column);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -62,13 +64,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_median_numeric_matrix
-NumericMatrix roll_median_numeric_matrix(NumericMatrix A_, int n);
-RcppExport SEXP RcppRoll_roll_median_numeric_matrix(SEXP A_SEXP, SEXP nSEXP) {
+NumericMatrix roll_median_numeric_matrix(NumericMatrix A_, int n, bool by_column);
+RcppExport SEXP RcppRoll_roll_median_numeric_matrix(SEXP A_SEXP, SEXP nSEXP, SEXP by_columnSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A_ = Rcpp::as<NumericMatrix >(A_SEXP);
     int n = Rcpp::as<int >(nSEXP);
-    NumericMatrix __result = roll_median_numeric_matrix(A_, n);
+    bool by_column = Rcpp::as<bool >(by_columnSEXP);
+    NumericMatrix __result = roll_median_numeric_matrix(A_, n, by_column);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -84,13 +87,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_min_numeric_matrix
-NumericMatrix roll_min_numeric_matrix(NumericMatrix A, int n);
-RcppExport SEXP RcppRoll_roll_min_numeric_matrix(SEXP ASEXP, SEXP nSEXP) {
+NumericMatrix roll_min_numeric_matrix(NumericMatrix A, int n, bool by_column);
+RcppExport SEXP RcppRoll_roll_min_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    NumericMatrix __result = roll_min_numeric_matrix(A, n);
+    bool by_column = Rcpp::as<bool >(by_columnSEXP);
+    NumericMatrix __result = roll_min_numeric_matrix(A, n, by_column);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -106,13 +110,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_prod_numeric_matrix
-NumericMatrix roll_prod_numeric_matrix(NumericMatrix A_, int n);
-RcppExport SEXP RcppRoll_roll_prod_numeric_matrix(SEXP A_SEXP, SEXP nSEXP) {
+NumericMatrix roll_prod_numeric_matrix(NumericMatrix A_, int n, bool by_column);
+RcppExport SEXP RcppRoll_roll_prod_numeric_matrix(SEXP A_SEXP, SEXP nSEXP, SEXP by_columnSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A_ = Rcpp::as<NumericMatrix >(A_SEXP);
     int n = Rcpp::as<int >(nSEXP);
-    NumericMatrix __result = roll_prod_numeric_matrix(A_, n);
+    bool by_column = Rcpp::as<bool >(by_columnSEXP);
+    NumericMatrix __result = roll_prod_numeric_matrix(A_, n, by_column);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -128,13 +133,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_sd_numeric_matrix
-NumericMatrix roll_sd_numeric_matrix(NumericMatrix A, int n);
-RcppExport SEXP RcppRoll_roll_sd_numeric_matrix(SEXP ASEXP, SEXP nSEXP) {
+NumericMatrix roll_sd_numeric_matrix(NumericMatrix A, int n, bool by_column);
+RcppExport SEXP RcppRoll_roll_sd_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    NumericMatrix __result = roll_sd_numeric_matrix(A, n);
+    bool by_column = Rcpp::as<bool >(by_columnSEXP);
+    NumericMatrix __result = roll_sd_numeric_matrix(A, n, by_column);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -150,13 +156,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_stddev_numeric_matrix
-NumericMatrix roll_stddev_numeric_matrix(NumericMatrix A_, int n);
-RcppExport SEXP RcppRoll_roll_stddev_numeric_matrix(SEXP A_SEXP, SEXP nSEXP) {
+NumericMatrix roll_stddev_numeric_matrix(NumericMatrix A_, int n, bool by_column);
+RcppExport SEXP RcppRoll_roll_stddev_numeric_matrix(SEXP A_SEXP, SEXP nSEXP, SEXP by_columnSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A_ = Rcpp::as<NumericMatrix >(A_SEXP);
     int n = Rcpp::as<int >(nSEXP);
-    NumericMatrix __result = roll_stddev_numeric_matrix(A_, n);
+    bool by_column = Rcpp::as<bool >(by_columnSEXP);
+    NumericMatrix __result = roll_stddev_numeric_matrix(A_, n, by_column);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -172,13 +179,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_sum_numeric_matrix
-NumericMatrix roll_sum_numeric_matrix(NumericMatrix A, int n);
-RcppExport SEXP RcppRoll_roll_sum_numeric_matrix(SEXP ASEXP, SEXP nSEXP) {
+NumericMatrix roll_sum_numeric_matrix(NumericMatrix A, int n, bool by_column);
+RcppExport SEXP RcppRoll_roll_sum_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    NumericMatrix __result = roll_sum_numeric_matrix(A, n);
+    bool by_column = Rcpp::as<bool >(by_columnSEXP);
+    NumericMatrix __result = roll_sum_numeric_matrix(A, n, by_column);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -194,13 +202,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_var_numeric_matrix
-NumericMatrix roll_var_numeric_matrix(NumericMatrix A, int n);
-RcppExport SEXP RcppRoll_roll_var_numeric_matrix(SEXP ASEXP, SEXP nSEXP) {
+NumericMatrix roll_var_numeric_matrix(NumericMatrix A, int n, bool by_column);
+RcppExport SEXP RcppRoll_roll_var_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    NumericMatrix __result = roll_var_numeric_matrix(A, n);
+    bool by_column = Rcpp::as<bool >(by_columnSEXP);
+    NumericMatrix __result = roll_var_numeric_matrix(A, n, by_column);
     return Rcpp::wrap(__result);
 END_RCPP
 }

@@ -5,14 +5,18 @@ Version: 0.1.0
 Date: 2013-01-10
 Author: Kevin Ushey
 Maintainer: Kevin Ushey <kevinushey@gmail.com>
-Description: Supplies some fast functions for 'roll'ing over vectors and
-    matrices, eg. rolling means, medians and varainces. Also provides
+Description: Supplies fast functions for 'roll'ing over vectors and
+    matrices, eg. rolling means, medians and variances. Also provides
     the utility function 'rollit' for generating your own C++ backed
-    rolling functions for fast execution.
-License: GPL
+    rolling functions for faster execution.
+License: GPL (>= 2)
 Depends:
+    R (>= 2.15.1),
     Rcpp (>= 0.10.2),
     RcppArmadillo (>= 0.3.6.1)
+Suggests:
+    zoo,
+    microbenchmark
 LinkingTo: Rcpp, RcppArmadillo
 Collate:
     'package_description.R'
@@ -27,4 +31,4 @@ Collate:
     'roll_stddev.R'
     'roll_max.R'
     'roll_min.R'
-    'rcpp_hello_world.R'
+    'get_rollit_source.R'

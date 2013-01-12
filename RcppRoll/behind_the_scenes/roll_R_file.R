@@ -1,4 +1,4 @@
-roll_R_file <- function( fun, includes, types ) {
+roll_R_file <- function( fun, includes, types, by ) {
   
   R_types <- Kmisc::Replace(
     types,
@@ -28,13 +28,14 @@ roll_R_file <- function( fun, includes, types ) {
   ## roxygen
   w("#' Rolling ", fun)
   w("#'")
-  w("#' This function implements a rolling ", fun, " with C++/Rcpp.")
+  w("#' This function implements a rolling ", fun, " with C++/", by, ".")
   w("#' @param x an \\R object of form: ", paste( R_types, collapse=", " ))
   w("#' @param n an integer; number of elements to 'roll' over.")
+  w("#' @param by.column boolean; if \\code{TRUE} we loop over columns, otherwise we loop over rows.")
   w("#' @export")
   
   ## function call
-  w("roll_", fun, " <- function( x, n ) {")
+  w("roll_", fun, " <- function( x, n, by.column=TRUE ) {")
   w1()
     
   ## Numeric Matrix handler
@@ -47,23 +48,7 @@ roll_R_file <- function( fun, includes, types ) {
     w3("stop(\"n cannot be greater than nrow(x).\")")
     w2("}")
     
-    w2("return( .Call( \"RcppRoll_roll_", fun, "_numeric_matrix\", x, as.integer(n), PACKAGE=\"RcppRoll\" ) )")
-    
-    w1("}")
-    w1("")
-  }
-  
-  ## Character Matrix handler
-  
-  if( "CharacterMatrix" %in% types ) {
-    w1("if( is.matrix(x) ) {")
-    
-    ## bounds checking
-    w2("if( n > nrow(x) ) {")
-    w3("stop(\"n cannot be greater than nrow(x).\")")
-    w2("}")
-    
-    w2("return( .Call( \"RcppRoll_roll_", fun, "_character_matrix\", x, as.integer(n), PACKAGE=\"RcppRoll\" ) )")
+    w2("return( .Call( \"RcppRoll_roll_", fun, "_numeric_matrix\", x, as.integer(n), as.logical(by.column), PACKAGE=\"RcppRoll\" ) )")
     
     w1("}")
     w1("")
@@ -80,22 +65,6 @@ roll_R_file <- function( fun, includes, types ) {
     w2("}")
     
     w2("return( as.numeric( .Call( \"RcppRoll_roll_", fun, "_numeric_vector\", x, as.integer(n), PACKAGE=\"RcppRoll\" ) ) )")
-    
-    w1("}")
-    w1("")
-  }
-  
-  ## Character Vector handler
-  
-  if( "CharacterVector" %in% types ) {
-    w1("if( is.vector(x) ) {")
-    
-    ## bounds checking
-    w2("if( n > length(x) ) {")
-    w3("stop(\"n cannot be greater than length(x).\")")
-    w2("}")
-    
-    w2("return( .Call( \"RcppRoll_roll_", fun, "_character_vector\", x, as.integer(n), PACKAGE=\"RcppRoll\" ) )")
     
     w1("}")
     w1("")

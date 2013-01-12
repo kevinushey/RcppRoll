@@ -9,16 +9,18 @@ source("./behind_the_scenes/roll_RcppArmadillo_file.R")
 #' @param includes header includes. by default we include \code{Rcpp.h}.
 #' @param depends other C++ package dependencies.
 #' @param types the acceptable types, in terms of the available Rcpp objects.
+#' @param by the program we give credit to for allowing us to compile.
 roller <- function( fun, 
                     includes=NULL, 
                     depends=NULL,
-                    types=c("NumericVector", "NumericMatrix")
+                    types=c("NumericVector", "NumericMatrix"),
+                    by="Rcpp"
 ) {
   
   cat("Rolling C++ source file for", fun, "...\n")
   roll_Rcpp_file( fun, includes, depends, types )
   cat("Rolling R source file for", fun, "...\n")
-  roll_R_file( fun, includes, types )
+  roll_R_file( fun, includes, types, by )
   cat("Done!")
   
 }
@@ -26,13 +28,14 @@ roller <- function( fun,
 roller.arma <- function( fun, 
                          includes="RcppArmadillo.h",
                          depends="RcppArmadillo",
-                         types=c("NumericVector", "NumericMatrix") 
+                         types=c("NumericVector", "NumericMatrix"),
+                         by="RcppArmadillo"
 ) {
   
   cat("Rolling C++ source file for", fun, "...\n")
   roll_RcppArmadillo_file( fun, includes, depends, types )
   cat("Rolling R source file for", fun, "...\n")
-  roll_R_file( fun, includes, types )
+  roll_R_file( fun, includes, types, by )
   cat("Done!")
   
 }

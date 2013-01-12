@@ -19,6 +19,10 @@ roll_RcppArmadillo_file <- function( fun, includes, depends, types ) {
     cat( paste0("\t\t\t", ..., "\n"), file=conn)
   }
   
+  w4 <- function(...) {
+    cat( paste0("\t\t\t\t", ..., "\n"), file=conn)
+  }
+  
   ## Write out dependencies
   if( !is.null(depends) ) {
     w( paste0("// [[Rcpp::depends(", 
@@ -67,25 +71,42 @@ roll_RcppArmadillo_file <- function( fun, includes, depends, types ) {
     
     ## write out the matrix handler
     w("// [[Rcpp::export]]")
-    w("NumericMatrix roll_", fun, "_numeric_matrix( NumericMatrix A_, int n ) {")
+    w("NumericMatrix roll_", fun, "_numeric_matrix( NumericMatrix A_, int n, bool by_column ) {")
     w1()
-    w1("arma::mat A = as<arma::mat>(A_);")
+    w1("int nRow = A_.nrow();")
+    w1("int nCol = A_.ncol();")
     w1()
-    w1("int nRow = A.n_rows;")
-    w1("int nCol = A.n_cols;")
+    w1("arma::mat A(A_.begin(), nRow, nCol, false);")
     w1()
-    w1("arma::mat B( nRow - n + 1, nCol );")
-    w1()
-    w1("for( int j=0; j < nCol; j++ ) {")
+    w1("if( by_column ) {")
+    w2("arma::mat B( nRow - n + 1, nCol );")
     w2()
-    w2("arma::vec tmp = A.col(j);")
-    w2("for( int i=0; i < nRow - n + 1; i++ ) {")
-    w3("B(i, j) = arma::", fun, "( tmp.subvec( i, i+n-1 ) );")
+    w2("for( int j=0; j < nCol; j++ ) {")
+    w3()
+    w3("arma::colvec tmp = A.col(j);")
+    w3("for( int i=0; i < nRow - n + 1; i++ ) {")
+    w4("B(i, j) = arma::", fun, "( tmp.subvec( i, i+n-1 ) );")
+    w3("}")
     w2("}")
+    w2()
+    w2("return wrap(B);")
+    w1()
+    w1("} else {")
+    w2()
+    w2("arma::mat B( nRow, nCol - n + 1 );")
+    w2()
+    w2("for( int i=0; i < nRow; i++ ) {")
+    w3()
+    w3("arma::rowvec tmp = A.row(i);")
+    w3("for( int j=0; j < nCol - n + 1; j++ ) {")
+    w4("B(i, j) = arma::", fun, "( tmp.subvec( j, j+n-1 ) );")
+    w3("}")
+    w2("}")
+    w2()
+    w2("return wrap(B);")
+    w1()
     w1("}")
-    w1()
-    w1("return wrap(B);")
-    w1()
+    w()
     w("}")
     
   }

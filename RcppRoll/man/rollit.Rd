@@ -2,45 +2,55 @@
 \alias{rollit}
 \title{Generate your own C++ Roll Function}
 \usage{
-  rollit(name, fun = "x", combine = "+",
-    final_trans = NULL, const_vars = NULL, includes = NULL,
-    depends = NULL, ...)
+  rollit(fun = "x", vector = FALSE, const_vars = NULL,
+    combine = "+", final_trans = NULL, includes = NULL,
+    depends = NULL, inline = TRUE, ...)
 }
 \arguments{
-  \item{name}{a name to use for the function.}
+  \item{fun}{A character string defining the function call.
+  The function must be in terms of variable \code{x}. The
+  function will be applied individually to each element
+  being 'roll'ed over, unless \code{vector=TRUE} is set.}
 
-  \item{fun}{the function call. must be in terms of
-  variable \code{x}.}
+  \item{vector}{boolean; if \code{TRUE}, the function
+  supplied attempts to take the entire vector passed, and
+  returns a scalar result. Otherwise, we apply the function
+  to each element of the vector \code{x} individually.}
+
+  \item{const_vars}{Constant variables you would like to
+  'live' within the sourced C++ function. Format is a named
+  \code{list}; eg, you could pass \code{list(pi=pi)} to
+  have \code{pi} as a constant variable available in the
+  function you're calling. You can also supply any constant
+  scalar-valued function of a vector; eg.
+  \code{list(n="x.size()")} will assign \code{n} to the
+  length of the sub-vector \code{x}.}
 
   \item{combine}{character; must be one of \code{"+", "-",
   "*", "/"}. how should we combine elements of the vector
   we are collapsing over?}
 
-  \item{final_trans}{a final transformation to perform
+  \item{final_trans}{A final transformation to perform
   after 'rolling' over each element in the vector
   \code{x}.}
 
-  \item{const_vars}{constant variables you would like to
-  'live' within the sourced C++ function. format is a named
-  \code{list}; eg, you could pass \code{list(pi=pi)} to
-  have \code{pi} as a constant variable referencable in the
-  function you're calling.}
-
-  \item{includes}{other C++ libraries to include. for
+  \item{includes}{Other C++ libraries to include. For
   example, to include \code{boost/math.hpp}, you would pass
   \code{c("boost/math.hpp")}.}
 
-  \item{depends}{other libraries to link to; linking is
+  \item{depends}{Other libraries to link to. Linking is
   done through Rcpp attributes.}
 
-  \item{...}{additional arguments passed to
-  \code{sourceCpp}.
+  \item{inline}{boolean; mark the function generated as
+  \code{inline}? This may or may not increase execution
+  speed.}
 
-  This is then wrapped through a more generic 'rolling' sum
-  function.}
+  \item{...}{Additional arguments passed to
+  \code{sourceCpp}.}
 }
 \value{
-  A wrapper \R function of the same name as \code{name}.
+  A wrapper \R function to compiled C++ files, as generated
+  through \code{sourceCpp}.
 }
 \description{
   Using this interface, you can define a function that you
@@ -53,27 +63,48 @@
   however, you can include your own libraries with the
   \code{includes} call.
 }
+\note{
+  All functions generated use Rcpp's \code{NumericVector}
+  and \code{NumericMatrix} to interface to \R vectors and
+  matrices. Because of this, any function that you would
+  like to call on the whole vector being rolled over (eg,
+  if you choose \code{vector=TRUE}) needs to be compatible
+  with the Rcpp \code{NumericVector}. Elements within these
+  vectors are translated as \code{double}s so any function
+  that receives a \code{double} will work fine (eg, if you
+  choose \code{vector=FALSE}).
+}
 \examples{
+\dontrun{
+x <- matrix(1:16, nrow=4)
+## the squared rolling sum -- we square the sum of our rolled results
+rolling_sqsum( x, 4 )
+rolling_sqsum( x, 4, by.column=FALSE )
+
+## use the Rcpp sugar function 'mean' -- let's compute a 'squared mean'
+rolling_mean <- rollit( "mean(x)", vector=TRUE, final_trans="x*x" )
+
 ## implement your own variance function
 ## we can use the sugar function 'mean' to get
 ## the mean of x
 
 const_vars <- list(m = "mean(x)", n = "x.size()")
-var_fun <- "pow( (x - m), 2)/(n-1)"
-rollit( "rolling_var", var_fun, const_vars=const_vars )
+var_fun <- "( (x-m) * (x-m) )/(n-1)"
+rolling_var <- rollit( var_fun, const_vars=const_vars )
 
 x <- c(1, 5, 10, 15)
 cbind( rolling_var(x, 2), roll_var(x, 2) )
 
 ## use a function from cmath
 
-rolling_ex <- rollit( "rolling_ex",
-  "log10(x)"
-  )
+rolling_log10 <- rollit( "log10(x)" )
+rolling_log10( 10^(1:5), 2 )
 
-## your C++ rolled functions will be much faster than an R
-## apply equivalent, but perhaps not as fast as one of the
-## internal versions...
+## rolling product
+rolling_prod <- rollit( combine="*" )
+rolling_prod( 1:10, 2 )
+
+## a benchmark
 
 if( require("microbenchmark") && require("zoo") ) {
   x <- rnorm(1E4)
@@ -83,6 +114,11 @@ if( require("microbenchmark") && require("zoo") ) {
     rollapply(x, 100, var),
     times=10
     )
-  }
+  }}
+}
+\seealso{
+  \code{\link{sourceCpp}} for information on how Rcpp
+  compiles your functions, and
+  \code{\link{get_rollit_source}} for inspection
 }
 

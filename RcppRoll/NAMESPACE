@@ -1,3 +1,4 @@
+export(get_rollit_source)
 export(roll_max)
 export(roll_mean)
 export(roll_median)

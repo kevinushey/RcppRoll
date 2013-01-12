@@ -7,50 +7,74 @@
 #' By default, we include \code{<Rcpp.h>} in each file; however, you can
 #' include your own libraries with the \code{includes} call.
 #' 
-#' @param name a name to use for the function.
-#' @param fun the function call. must be in terms of variable \code{x}.
+#' @param fun A character string defining the function call. The function must be in 
+#' terms of variable \code{x}. The function will be applied individually 
+#' to each element being 'roll'ed over, unless \code{vector=TRUE} is set.
+#' @param vector boolean; if \code{TRUE}, the function supplied attempts to take
+#' the entire vector passed, and returns a scalar result. Otherwise, we
+#' apply the function to each element of the vector \code{x} individually.
+#' @param const_vars Constant variables you would like to 'live' within
+#' the sourced C++ function. Format is a named \code{list}; eg, you
+#' could pass \code{list(pi=pi)} to have \code{pi} as a constant variable
+#' available in the function you're calling. You can also supply any
+#' constant scalar-valued function of a vector; eg. \code{list(n="x.size()")} 
+#' will assign \code{n} to the length of the sub-vector \code{x}.
 #' @param combine character; must be one of \code{"+", "-", "*", "/"}. 
 #' how should we combine elements of the vector we are collapsing over?
-#' @param final_trans a final transformation to perform after 'rolling'
+#' @param final_trans A final transformation to perform after 'rolling'
 #' over each element in the vector \code{x}.
-#' @param const_vars constant variables you would like to 'live' within
-#' the sourced C++ function. format is a named \code{list}; eg, you
-#' could pass \code{list(pi=pi)} to have \code{pi} as a constant variable
-#' referencable in the function you're calling.
-#' @param includes other C++ libraries to include. for example, to include
+#' @param includes Other C++ libraries to include. For example, to include
 #' \code{boost/math.hpp}, you would pass
 #' \code{c("boost/math.hpp")}.
-#' @param depends other libraries to link to; linking is done through
+#' @param depends Other libraries to link to. Linking is done through
 #' Rcpp attributes.
-#' @param ... additional arguments passed to \code{sourceCpp}.
-#' 
-#' This is then wrapped through a more generic 'rolling' sum function.
-#' 
-#' 
-#' @return A wrapper \R function of the same name as \code{name}.
+#' @param inline boolean; mark the function generated as \code{inline}?
+#' This may or may not increase execution speed.
+#' @param ... Additional arguments passed to \code{sourceCpp}.
+#' @return A wrapper \R function to compiled C++ files, as generated through
+#' \code{sourceCpp}.
 #' @export
-#' @examples
+#' @seealso \code{\link{sourceCpp}} for information on how Rcpp
+#' compiles your functions, and \code{\link{get_rollit_source}} for
+#' inspection 
+#' @note All functions generated use Rcpp's \code{NumericVector} and
+#' \code{NumericMatrix} to interface to \R vectors and matrices. Because of
+#' this, any function that you would like to call on the whole vector being
+#' rolled over (eg, if you choose \code{vector=TRUE}) needs to be compatible 
+#' with the Rcpp \code{NumericVector}. Elements within these vectors are 
+#' translated as \code{double}s so any function that receives a \code{double} 
+#' will work fine (eg, if you choose \code{vector=FALSE}).
+#' 
+#' @examples \dontrun{
+#' x <- matrix(1:16, nrow=4)
+#' ## the squared rolling sum -- we square the sum of our rolled results
+#' rolling_sqsum( x, 4 )
+#' rolling_sqsum( x, 4, by.column=FALSE )
+#' 
+#' ## use the Rcpp sugar function 'mean' -- let's compute a 'squared mean'
+#' rolling_mean <- rollit( "mean(x)", vector=TRUE, final_trans="x*x" )
 #' 
 #' ## implement your own variance function
 #' ## we can use the sugar function 'mean' to get
 #' ## the mean of x
 #' 
 #' const_vars <- list(m = "mean(x)", n = "x.size()")
-#' var_fun <- "pow( (x - m), 2)/(n-1)"
-#' rollit( "rolling_var", var_fun, const_vars=const_vars )
+#' var_fun <- "( (x-m) * (x-m) )/(n-1)"
+#' rolling_var <- rollit( var_fun, const_vars=const_vars )
 #' 
 #' x <- c(1, 5, 10, 15)
 #' cbind( rolling_var(x, 2), roll_var(x, 2) )
 #' 
 #' ## use a function from cmath
 #' 
-#' rolling_ex <- rollit( "rolling_ex",
-#'   "log10(x)"
-#'   )
+#' rolling_log10 <- rollit( "log10(x)" )
+#' rolling_log10( 10^(1:5), 2 )
 #' 
-#' ## your C++ rolled functions will be much faster than an R
-#' ## apply equivalent, but perhaps not as fast as one of the
-#' ## internal versions...
+#' ## rolling product
+#' rolling_prod <- rollit( combine="*" )
+#' rolling_prod( 1:10, 2 )
+#' 
+#' ## a benchmark
 #' 
 #' if( require("microbenchmark") && require("zoo") ) {
 #'   x <- rnorm(1E4)
@@ -60,31 +84,40 @@
 #'     rollapply(x, 100, var),
 #'     times=10
 #'     )
-#'   }
-rollit <- function( name, 
-                    fun="x",
-                    combine="+", 
+#'   }}
+rollit <- function( fun="x",
+                    vector=FALSE,
+                    const_vars=NULL,
+                    combine="+",
                     final_trans=NULL,
-                    const_vars=NULL, 
                     includes=NULL, 
                     depends=NULL,
+                    inline=TRUE,
                     ... ) {
   
-  ## environment for cppSource generated files
-  cpp_env <- new.env()
+  ## error checks
+  if( !is.null(const_vars) ) {
+    if( !is.list(const_vars) || is.list(const_vars) && is.null( names( const_vars ) ) ) {
+      stop("'const_vars' must be a named list")
+    }
+  }
   
   if( length( combine ) > 1 || !(combine %in% c("+", "-", "*", "/") ) ) {
     stop("combine must be one of '+', '-', '*', '/'")
   }
   
-  if( exists(name) ) {
-    cat("Warning! A variable is already bound to", deparse( substitute( name ) ), ".",
-        "\nReplace this binding? (y/n):\n")
-    if( length( grep( "^y", scan( quiet=TRUE, what=character(), n=1 ) ) ) < 1 ) {
-      cat("Function processing stopped.")
-      return( get(name) )
-    }
+  funky_regex <- "([^a-zA-Z_])(x)(?=[^x])|(\\Ax)|(x\\z)"
+  if( length( grep( funky_regex, fun, perl=TRUE ) ) < 1 ) {
+    stop("'fun' must be in terms of a variable 'x'")
   }
+  
+  ## random name
+  name <- paste( sep="", collapse="", c("z",
+                 sample( c( letters, LETTERS, 0:9), size=20, replace=TRUE )
+  ) )
+  
+  ## environment for cppSource generated files
+  cpp_env <- new.env()
   
   outFile <- paste( sep="", tempfile(), ".cpp" )
   conn <- file( outFile, open="w" )
@@ -104,6 +137,10 @@ rollit <- function( name,
   
   w3 <- function(...) {
     cat( paste0("\t\t\t", ..., "\n"), file=conn)
+  }
+  
+  w4 <- function(...) {
+    cat( paste0("\t\t\t\t", ..., "\n"), file=conn)
   }
   
   ## depends
@@ -129,27 +166,36 @@ rollit <- function( name,
   
   ## wrap the function provided by the user
   
+  if( inline) w("inline")
   w("double ", name, "(NumericVector x) {")
-  w1("double out = 0;")
+  if( combine %in% c("+", "-") ) { 
+    w1("double out_ = 0;")
+  } else {
+    w1("double out_ = 1;")
+  }
   
   ## constant variables
   for( i in seq_along(const_vars) ) {
     if( !is.null(const_vars) ) {
-      w1("double ", names(const_vars)[i], " = ", const_vars[i], ";")
+      w1("const double ", names(const_vars)[i], " = ", const_vars[i], ";")
     }
   }
   
   ## funky parser
-  funky_regex <- "([^a-zA-Z_])(x)(?=[^x])|(^x$)"
-  (parsed_fun <- gsub( funky_regex, "\\1\\2\\3[i]", fun, perl=TRUE ))
+  (parsed_fun <- gsub( funky_regex, "\\1\\2\\3\\4\\5[i]", fun, perl=TRUE ))
   
-  w1("for( int i=0; i < x.size(); i++ ) {")
-  w2("out ", combine, "= (", parsed_fun, ");")
-  w1("}")
-  if( !is.null( final_trans ) ) {
-    w1("out = ", gsub( funky_regex, "\\1out", final_trans, perl=TRUE), ";" )
+  ## apply function elementwise
+  if( !vector ) {
+    w1("for( int i=0; i < x.size(); i++ ) {")
+    w2("out_ ", combine, "= ", parsed_fun, ";")
+    w1("}")
+  } else {
+    w1("out_ = ", fun, ";")
   }
-  w1("return out;")
+  if( !is.null( final_trans ) ) {
+    w1("out_ = ", gsub( funky_regex, "out_", final_trans, perl=TRUE), ";" )
+  }
+  w1("return out_;")
   w("}")
   w()
   
@@ -160,7 +206,7 @@ rollit <- function( name,
   w1("int len = x.size();")
   w1("int len_out = len - n + 1;")
   w1()
-  w1("NumericVector out( len_out );")
+  w1("NumericVector out = no_init( len_out );")
   w1()
   w1("for( int i=0; i < len_out; i++ ) {")  
   w2("out[i] = ", name, "( x[ seq(i, i+n-1) ] );")
@@ -174,36 +220,61 @@ rollit <- function( name,
   ## function definition -- matrix
   
   w("// [[Rcpp::export]]")
-  w("NumericMatrix ", name, "_matrix( NumericMatrix A, int n ) {")
+  w("NumericMatrix ", name, "_matrix( NumericMatrix A, int n, bool by_column ) {")
   w1()
   w1("int nRow = A.nrow();")
   w1("int nCol = A.ncol();")
-  w1()
-  w1("NumericMatrix B( nRow - n + 1, nCol );")
-  w1()
-  w1("for( int j=0; j < nCol; j++ ) {")
+  
+  ## by column
+  w1("if( by_column ) {")
   w2()
-  w2("NumericVector tmp = A(_, j);")
-  w2("for( int i=0; i < nRow - n + 1; i++ ) {")
-  w3("B(i, j) = ", name, "( tmp[ seq(i, i+n-1) ] );")
+  w2("NumericMatrix B( nRow - n + 1, nCol );")
+  w2()
+  w2("for( int j=0; j < nCol; j++ ) {")
+  w3()
+  w3("NumericVector tmp = A(_, j);")
+  w3("for( int i=0; i < nRow - n + 1; i++ ) {")
+  w4("B(i, j) = ", name, "( tmp[ seq(i, i+n-1) ] );")
+  w3("}")
   w2("}")
-  w1("}")
-  w1()
+  w2()
   w1("return B;")
   w1()
+  
+  ## by row
+  w1("} else {")
+  w2()
+  w2("NumericMatrix B( nRow, nCol - n + 1 );")
+  w2()
+  w2("for( int i=0; i < nRow; i++ ) {")
+  w3()
+  w3("NumericVector tmp = A(i, _);")
+  w3("for( int j=0; j < nCol - n + 1; j++ ) {")
+  w4("B(i, j) = ", name, "( tmp[ seq(j, j+n-1) ] );")
+  w3("}")
+  w2("}")
+  w2()
+  w1("return B;")
+  w1()
+  w1("}")
+  w()
   w("}")
   
-  cat("C++ source file written to", outFile, ".")
   
+  cat("C++ source file written to", outFile, ".\n")
+  cat("Compiling...\n")
   sourceCpp( outFile, env=cpp_env, ... )
+  cat("Done!\n")
   
-  return( function(x, n) {
+  return( function(x, n, by.column=TRUE) {
+    
+    outFile <- outFile
     
     if( is.matrix(x) ) {
       if( n > nrow(x) ) {
         stop("n cannot be greater than nrow(x).")
       }
-      call <- call( paste( sep="", name, "_matrix" ), x, as.integer(n) )
+      call <- call( paste( sep="", name, "_matrix" ), x, as.integer(n), as.logical(by.column) )
       return( eval( call, envir=cpp_env ) )
     }
     

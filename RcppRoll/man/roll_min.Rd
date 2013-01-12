@@ -2,13 +2,16 @@
 \alias{roll_min}
 \title{Rolling min}
 \usage{
-  roll_min(x, n)
+  roll_min(x, n, by.column = TRUE)
 }
 \arguments{
   \item{x}{an \R object of form: numeric vector, numeric
   matrix}
 
   \item{n}{an integer; number of elements to 'roll' over.}
+
+  \item{by.column}{boolean; if \code{TRUE} we loop over
+  columns, otherwise we loop over rows.}
 }
 \description{
   This function implements a rolling min with C++/Rcpp.

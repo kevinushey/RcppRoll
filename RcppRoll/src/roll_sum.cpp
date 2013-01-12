@@ -18,21 +18,38 @@ NumericVector roll_sum_numeric_vector( NumericVector x, int n ) {
 }
 
 // [[Rcpp::export]]
-NumericMatrix roll_sum_numeric_matrix( NumericMatrix A, int n ) {
+NumericMatrix roll_sum_numeric_matrix( NumericMatrix A, int n, bool by_column ) {
 	
 	int nRow = A.nrow();
 	int nCol = A.ncol();
-	
-	NumericMatrix B( nRow - n + 1, nCol );
-	
-	for( int j=0; j < nCol; j++ ) {
+	if( by_column ) {
 		
-		NumericVector tmp = A(_, j);
-		for( int i=0; i < nRow - n + 1; i++ ) {
-			B(i, j) = sum( tmp[ seq(i, i+n-1) ] );
+		NumericMatrix B( nRow - n + 1, nCol );
+		
+		for( int j=0; j < nCol; j++ ) {
+			
+			NumericVector tmp = A(_, j);
+			for( int i=0; i < nRow - n + 1; i++ ) {
+				B(i, j) = sum( tmp[ seq(i, i+n-1) ] );
+			}
 		}
-	}
 	
 	return B;
 	
+	} else {
+	
+		NumericMatrix B( nRow, nCol - n + 1 );
+		
+		for( int i=0; i < nRow; i++ ) {
+			
+			NumericVector tmp = A(i, _);
+				for( int j=0; j < nCol - n + 1; j++ ) {
+			B(i, j) = sum( tmp[ seq(j, j+n-1) ] );
+			}
+		}
+	
+	return B;
+	
+	}
+
 }
