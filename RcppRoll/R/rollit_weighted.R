@@ -42,7 +42,7 @@
 #' @export
 #' @seealso \code{\link{sourceCpp}} for information on how Rcpp
 #' compiles your functions, and \code{\link{get_rollit_source}} for
-#' inspection 
+#' inspection of the generated C++ code.
 #' @note All functions generated use Rcpp's \code{NumericVector} and
 #' \code{NumericMatrix} to interface to \R vectors and matrices. Because of
 #' this, any function that you would like to call on the whole vector being
@@ -53,12 +53,16 @@
 #' 
 #' @examples \dontrun{
 #' x <- matrix(1:16, nrow=4)
+#' 
 #' ## the squared rolling sum -- we square the sum of our rolled results
+#' rolling_sqsum <- rollit( final_trans="x*x" )
+#' 
 #' rolling_sqsum( x, 4 )
 #' rolling_sqsum( x, 4, by.column=FALSE )
+#' cbind( as.vector(rolling_sqsum(x, 4)), apply(x, 2, function(x) { sum(x)^2 } ) )
 #' 
-#' ## use the Rcpp sugar function 'mean' -- let's compute a 'squared mean'
-#' rolling_mean <- rollit( "mean(x)", vector=TRUE, final_trans="x*x" )
+#' ## use the Rcpp sugar function 'mean' -- let's compute a 'sqrt mean'
+#' rolling_mean <- rollit( "mean(x)", vector=TRUE, final_trans="sqrt( x )" )
 #' 
 #' ## implement your own variance function
 #' ## we can use the sugar function 'mean' to get
@@ -93,7 +97,7 @@
 #'   }}
 rollit <- function( fun="x",
                     vector=FALSE,
-                    const_vars=list(n="x.size()"),
+                    const_vars=NULL,
                     combine="+",
                     final_trans=NULL,
                     includes=NULL, 
@@ -199,7 +203,7 @@ rollit <- function( fun="x",
     w1("out_ = ", fun, ";")
   }
   if( !is.null( final_trans ) ) {
-    w1("out_ = ", gsub( funky_regex, "out_", final_trans, perl=TRUE), ";" )
+    w1("out_ = ", gsub( funky_regex, "\\1out_", final_trans, perl=TRUE), ";" )
   }
   w1("return out_;")
   w("}")

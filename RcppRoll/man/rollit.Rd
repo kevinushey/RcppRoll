@@ -2,10 +2,9 @@
 \alias{rollit}
 \title{Generate your own Weighted C++ Roll Function}
 \usage{
-  rollit(fun = "x", vector = FALSE,
-    const_vars = list(n = "x.size()"), combine = "+",
-    final_trans = NULL, includes = NULL, depends = NULL,
-    inline = TRUE, ...)
+  rollit(fun = "x", vector = FALSE, const_vars = NULL,
+    combine = "+", final_trans = NULL, includes = NULL,
+    depends = NULL, inline = TRUE, ...)
 }
 \arguments{
   \item{fun}{A character string defining the function call.
@@ -85,12 +84,16 @@
 \examples{
 \dontrun{
 x <- matrix(1:16, nrow=4)
+
 ## the squared rolling sum -- we square the sum of our rolled results
+rolling_sqsum <- rollit( final_trans="x*x" )
+
 rolling_sqsum( x, 4 )
 rolling_sqsum( x, 4, by.column=FALSE )
+cbind( as.vector(rolling_sqsum(x, 4)), apply(x, 2, function(x) { sum(x)^2 } ) )
 
-## use the Rcpp sugar function 'mean' -- let's compute a 'squared mean'
-rolling_mean <- rollit( "mean(x)", vector=TRUE, final_trans="x*x" )
+## use the Rcpp sugar function 'mean' -- let's compute a 'sqrt mean'
+rolling_mean <- rollit( "mean(x)", vector=TRUE, final_trans="sqrt( x )" )
 
 ## implement your own variance function
 ## we can use the sugar function 'mean' to get
@@ -127,6 +130,7 @@ if( require("microbenchmark") && require("zoo") ) {
 \seealso{
   \code{\link{sourceCpp}} for information on how Rcpp
   compiles your functions, and
-  \code{\link{get_rollit_source}} for inspection
+  \code{\link{get_rollit_source}} for inspection of the
+  generated C++ code.
 }
 
