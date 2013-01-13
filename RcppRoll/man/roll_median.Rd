@@ -14,7 +14,7 @@
   columns, otherwise we loop over rows.}
 }
 \description{
-  This function implements a rolling median with
+  This function implements a rolling Median with
   C++/RcppArmadillo.
 }
 

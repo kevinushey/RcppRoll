@@ -14,6 +14,6 @@
   columns, otherwise we loop over rows.}
 }
 \description{
-  This function implements a rolling min with C++/Rcpp.
+  This function implements a rolling Min with C++/Rcpp.
 }
 

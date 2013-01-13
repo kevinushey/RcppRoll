@@ -14,7 +14,7 @@
   columns, otherwise we loop over rows.}
 }
 \description{
-  This function implements a rolling prod with
+  This function implements a rolling Prod with
   C++/RcppArmadillo.
 }
 

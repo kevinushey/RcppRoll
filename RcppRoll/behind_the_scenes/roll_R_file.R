@@ -25,10 +25,16 @@ roll_R_file <- function( fun, includes, types, by ) {
     cat( paste0("\t\t\t", ..., "\n"), file=conn)
   }
   
+  .simpleCap <- function(x) {
+    s <- strsplit(x, " ")[[1]]
+    paste(toupper(substring(s, 1,1)), substring(s, 2),
+          sep="", collapse=" ")
+  }
+  
   ## roxygen
   w("#' Rolling ", fun)
   w("#'")
-  w("#' This function implements a rolling ", fun, " with C++/", by, ".")
+  w("#' This function implements a rolling ", .simpleCap(fun), " with C++/", by, ".")
   w("#' @param x an \\R object of form: ", paste( R_types, collapse=", " ))
   w("#' @param n an integer; number of elements to 'roll' over.")
   w("#' @param by.column boolean; if \\code{TRUE} we loop over columns, otherwise we loop over rows.")

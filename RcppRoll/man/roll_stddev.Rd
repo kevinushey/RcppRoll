@@ -14,7 +14,7 @@
   columns, otherwise we loop over rows.}
 }
 \description{
-  This function implements a rolling stddev with
+  This function implements a rolling Stddev with
   C++/RcppArmadillo.
 }
 

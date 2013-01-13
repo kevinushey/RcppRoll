@@ -1,10 +1,11 @@
 \name{rollit}
 \alias{rollit}
-\title{Generate your own C++ Roll Function}
+\title{Generate your own Weighted C++ Roll Function}
 \usage{
-  rollit(fun = "x", vector = FALSE, const_vars = NULL,
-    combine = "+", final_trans = NULL, includes = NULL,
-    depends = NULL, inline = TRUE, ...)
+  rollit(fun = "x", vector = FALSE,
+    const_vars = list(n = "x.size()"), combine = "+",
+    final_trans = NULL, includes = NULL, depends = NULL,
+    inline = TRUE, ...)
 }
 \arguments{
   \item{fun}{A character string defining the function call.
@@ -50,7 +51,14 @@
 }
 \value{
   A wrapper \R function to compiled C++ files, as generated
-  through \code{sourceCpp}.
+  through \code{sourceCpp}. The function accepts arguments
+  for: a vector/matrix \code{x}, a window-size \code{n},
+  the logical \code{by.column}, a vector of \code{weights},
+  and a \code{by} statement. Note that the \code{weights}
+  provides are un-normalized. By is used to 'skip' entries;
+  so that setting \code{by=2} and a window size \code{n} of
+  3 would effectively call the function on only the first
+  and third elements of each vector passed through.
 }
 \description{
   Using this interface, you can define a function that you

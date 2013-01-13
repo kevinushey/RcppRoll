@@ -14,6 +14,6 @@
   columns, otherwise we loop over rows.}
 }
 \description{
-  This function implements a rolling var with C++/Rcpp.
+  This function implements a rolling Var with C++/Rcpp.
 }
 

@@ -1,6 +1,6 @@
 #' Rolling stddev
 #'
-#' This function implements a rolling stddev with C++/RcppArmadillo.
+#' This function implements a rolling Stddev with C++/RcppArmadillo.
 #' @param x an \R object of form: numeric vector, numeric matrix
 #' @param n an integer; number of elements to 'roll' over.
 #' @param by.column boolean; if \code{TRUE} we loop over columns, otherwise we loop over rows.
