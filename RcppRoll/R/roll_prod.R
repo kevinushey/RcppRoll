@@ -1,8 +1,8 @@
-#' Rolling prod
+#' Rolling Prod
 #'
-#' This function implements a rolling Prod with C++/RcppArmadillo.
-#' @param x an \R object of form: numeric vector, numeric matrix
-#' @param n an integer; number of elements to 'roll' over.
+#' This function implements a rolling prod with C++/RcppArmadillo.
+#' @param x an \R object of form: numeric vector, numeric matrix.
+#' @param n integer; the window / subset size to roll over.
 #' @param by.column boolean; if \code{TRUE} we loop over columns, otherwise we loop over rows.
 #' @export
 roll_prod <- function( x, n, by.column=TRUE ) {

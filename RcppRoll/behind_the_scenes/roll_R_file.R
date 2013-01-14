@@ -32,11 +32,11 @@ roll_R_file <- function( fun, includes, types, by ) {
   }
   
   ## roxygen
-  w("#' Rolling ", fun)
+  w("#' Rolling ", .simpleCap(fun))
   w("#'")
-  w("#' This function implements a rolling ", .simpleCap(fun), " with C++/", by, ".")
-  w("#' @param x an \\R object of form: ", paste( R_types, collapse=", " ))
-  w("#' @param n an integer; number of elements to 'roll' over.")
+  w("#' This function implements a rolling ", fun, " with C++/", by, ".")
+  w("#' @param x an \\R object of form: ", paste( R_types, collapse=", " ), ".")
+  w("#' @param n integer; the window / subset size to roll over.")
   w("#' @param by.column boolean; if \\code{TRUE} we loop over columns, otherwise we loop over rows.")
   w("#' @export")
   

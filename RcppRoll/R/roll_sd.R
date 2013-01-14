@@ -1,8 +1,8 @@
-#' Rolling sd
+#' Rolling Sd
 #'
-#' This function implements a rolling Sd with C++/Rcpp.
-#' @param x an \R object of form: numeric vector, numeric matrix
-#' @param n an integer; number of elements to 'roll' over.
+#' This function implements a rolling sd with C++/Rcpp.
+#' @param x an \R object of form: numeric vector, numeric matrix.
+#' @param n integer; the window / subset size to roll over.
 #' @param by.column boolean; if \code{TRUE} we loop over columns, otherwise we loop over rows.
 #' @export
 roll_sd <- function( x, n, by.column=TRUE ) {

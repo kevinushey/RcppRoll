@@ -1,8 +1,8 @@
-#' Rolling median
+#' Rolling Median
 #'
-#' This function implements a rolling Median with C++/RcppArmadillo.
-#' @param x an \R object of form: numeric vector, numeric matrix
-#' @param n an integer; number of elements to 'roll' over.
+#' This function implements a rolling median with C++/RcppArmadillo.
+#' @param x an \R object of form: numeric vector, numeric matrix.
+#' @param n integer; the window / subset size to roll over.
 #' @param by.column boolean; if \code{TRUE} we loop over columns, otherwise we loop over rows.
 #' @export
 roll_median <- function( x, n, by.column=TRUE ) {

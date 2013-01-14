@@ -1,20 +1,20 @@
 \name{roll_stddev}
 \alias{roll_stddev}
-\title{Rolling stddev}
+\title{Rolling Stddev}
 \usage{
   roll_stddev(x, n, by.column = TRUE)
 }
 \arguments{
   \item{x}{an \R object of form: numeric vector, numeric
-  matrix}
+  matrix.}
 
-  \item{n}{an integer; number of elements to 'roll' over.}
+  \item{n}{integer; the window / subset size to roll over.}
 
   \item{by.column}{boolean; if \code{TRUE} we loop over
   columns, otherwise we loop over rows.}
 }
 \description{
-  This function implements a rolling Stddev with
+  This function implements a rolling stddev with
   C++/RcppArmadillo.
 }
 

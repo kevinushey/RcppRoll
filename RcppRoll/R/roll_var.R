@@ -1,8 +1,8 @@
-#' Rolling var
+#' Rolling Var
 #'
-#' This function implements a rolling Var with C++/Rcpp.
-#' @param x an \R object of form: numeric vector, numeric matrix
-#' @param n an integer; number of elements to 'roll' over.
+#' This function implements a rolling var with C++/Rcpp.
+#' @param x an \R object of form: numeric vector, numeric matrix.
+#' @param n integer; the window / subset size to roll over.
 #' @param by.column boolean; if \code{TRUE} we loop over columns, otherwise we loop over rows.
 #' @export
 roll_var <- function( x, n, by.column=TRUE ) {
