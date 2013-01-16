@@ -4,7 +4,7 @@
 \alias{RcppRoll-package}
 \title{RcppRoll}
 \description{
-  This package implements a number of 'roll'-ing functions
+  This package implements a number of 'roll'ing functions
   for \R vectors and matrices.
 }
 \details{
@@ -15,11 +15,12 @@
   \item{\code{\link{roll_min}}}
   \item{\code{\link{roll_prod}}}
   \item{\code{\link{roll_sd}}}
+  \item{\code{\link{roll_stddev}}}
   \item{\code{\link{roll_sum}}}
   \item{\code{\link{roll_var}}} }
 }
 \seealso{
-  \code{\link{rollit}} for 'roll'-ing your own custom
+  \code{\link{rollit}} for 'roll'ing your own custom
   functions.
 }
 

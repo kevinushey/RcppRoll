@@ -1,4 +1,4 @@
-#' Get and Edit Source File Associated with User-Generated 'rollit' Function
+#' Get and Edit Source File Associated with 'rollit' Function
 #' 
 #' This function returns and opens the source file associated with
 #' a particular 'rollit' function for debugging. We use \R's
@@ -9,7 +9,7 @@
 #' @param RStudio boolean; open the C++ source file in RStudio?
 #' @param ... Optional arguments passed to \code{\link{file.edit}}.
 #' @export
-get_rollit_source <- function(fun, edit=TRUE, RStudio=FALSE, ...) {
+get_rollit_source <- function(fun, RStudio=FALSE, edit=TRUE, ...) {
   
   file <- get( "outFile", envir=environment( fun ) )
   if( !file.exists(file) ) {

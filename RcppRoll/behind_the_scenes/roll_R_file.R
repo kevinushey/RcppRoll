@@ -35,41 +35,26 @@ roll_R_file <- function( fun, includes, types, by ) {
   w("#' Rolling ", .simpleCap(fun))
   w("#'")
   w("#' This function implements a rolling ", fun, " with C++/", by, ".")
-  w("#' @param x An \\R object of form: ", paste( R_types, collapse=", " ), ".")
+  w("#' @param x an \\R object of form: ", paste( R_types, collapse=", " ), ".")
   w("#' @param n integer; the window / subset size to roll over.")
   w("#' @param by.column boolean; if \\code{TRUE} we loop over columns, otherwise we loop over rows.")
-  w("#' @param weights A numeric vector of weights of same length as \\code{n}.")
-  w("#' @param normalize boolean; if \\code{TRUE}, we normalize the weight of vectors supplied.")
-  w("#' @note Elements in \\code{weights} equal to 0 are skipped.")
   w("#' @export")
   
   ## function call
-  w("roll_", fun, " <- function( x, n, by.column=TRUE, weights=rep(1,n), normalize=FALSE ) {")
+  w("roll_", fun, " <- function( x, n, by.column=TRUE ) {")
   w1()
-  
-  ## ensure weights correct
-  w1("stopifnot( length(weights) == n )")
-  
-  ## normalize?
-  w1("if( normalize ) {")
-  w2("weights <- weights * length(weights) / sum(weights)")
-  w1("}")
-  w1()
-  
+    
   ## Numeric Matrix handler
   
   if( "NumericMatrix" %in% types ) {
     w1("if( is.matrix(x) ) {")
     
     ## bounds checking
-    w2("if( by.column && n > nrow(x) ) {")
+    w2("if( n > nrow(x) ) {")
     w3("stop(\"n cannot be greater than nrow(x).\")")
-    w2("} else if( !by.column && n > ncol(x) ) {")
-    w3("stop(\"n cannot be greater than ncol(x).\")")
     w2("}")
-    w2()
     
-    w2("return( .Call( \"RcppRoll_roll_", fun, "_numeric_matrix\", x, as.integer(n), as.logical(by.column), as.numeric(weights), PACKAGE=\"RcppRoll\" ) )")
+    w2("return( .Call( \"RcppRoll_roll_", fun, "_numeric_matrix\", x, as.integer(n), as.logical(by.column), PACKAGE=\"RcppRoll\" ) )")
     
     w1("}")
     w1("")
@@ -85,7 +70,7 @@ roll_R_file <- function( fun, includes, types, by ) {
     w3("stop(\"n cannot be greater than length(x).\")")
     w2("}")
     
-    w2("return( as.numeric( .Call( \"RcppRoll_roll_", fun, "_numeric_vector\", x, as.integer(n), as.numeric(weights), PACKAGE=\"RcppRoll\" ) ) )")
+    w2("return( as.numeric( .Call( \"RcppRoll_roll_", fun, "_numeric_vector\", x, as.integer(n), PACKAGE=\"RcppRoll\" ) ) )")
     
     w1("}")
     w1("")

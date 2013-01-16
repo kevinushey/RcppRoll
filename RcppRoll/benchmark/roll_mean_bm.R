@@ -7,6 +7,8 @@ y <- matrix( rnorm(1E6), ncol=1E3 )
 
 rolling_mean <- rollit(final_trans="x/N")
 rolling_mean2 <- rollit(final_trans="x/N", inline=FALSE)
+rolling_mean3 <- rollit_raw("return mean(x);")
+rolling_mean4 <- rollit_raw("return mean(x);", inline=FALSE)
 
 close_enough <- function(x, y) {
   all.equal(x, y, tolerance = 2*.Machine$double.eps)
@@ -16,6 +18,8 @@ microbenchmark(
   roll_mean(x, 10),
   rolling_mean(x, 10),
   rolling_mean2(x, 10),
+  rolling_mean3(x, 10),
+  rolling_mean4(x, 10),
   roll_median(x, 10),
   zoo::rollmean(x, 10),
   zoo::rollapply(x, 10, mean),

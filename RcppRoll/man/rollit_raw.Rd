@@ -1,9 +1,9 @@
 \name{rollit_raw}
 \alias{rollit_raw}
-\title{Generate your own Weighted C++ Roll Function}
+\title{Wrap in a Raw C++ Function}
 \usage{
   rollit_raw(fun, depends = NULL, includes = NULL,
-    inline = TRUE, name = NULL, additional = NULL, ...)
+    inline = TRUE, ...)
 }
 \arguments{
   \item{fun}{A character string defining the function call.
@@ -11,7 +11,7 @@
 
   \item{includes}{Other C++ libraries to include. For
   example, to include \code{boost/math.hpp}, you would pass
-  \code{c("<boost/math.hpp>")}.}
+  \code{c("boost/math.hpp")}.}
 
   \item{depends}{Other libraries to link to. Linking is
   done through Rcpp attributes.}
@@ -19,86 +19,35 @@
   \item{inline}{boolean; mark this function as inline? This
   may or may not increase execution speed.}
 
-  \item{name}{string; a name to internally assign to your
-  generated C++ functions.}
-
-  \item{additional}{Other C++ code you want to include;
-  e.g. helper functions. This code will be inserted as-is
-  above the code in \code{fun}.}
-
   \item{...}{Optional arguments passed to
   \code{sourceCpp}.}
 }
 \description{
   Using this, you can write and wrap in your own C++
-  function.
+  function. The onus is, however, on you to know what
+  you're doing.
 }
 \details{
-  The signature of \code{fun} is fixed as:
+  The signature of the function is fixed as:
 
-  \code{double <name>( NumericVector& x, NumericVector&
-  weights, const int& n, const int& N, const int& ind)}
+  \code{double <name>( NumericVector x, const NumericVector
+  weights )}
 
-  where
-
-  \itemize{
-
-  \item{\code{X_SUB} is a \code{#define} macro that expands
-  to the sub-vector being rolled over,}
-
-  \item{\code{X(i)} is a \code{#define} macro that expands
-  to the current element of \code{X_SUB} in a loop being
-  rolled over,}
-
-  \item{\code{x} is a reference to the \bold{entire} vector
-  (not just the sub-vector being rolled over),}
-
-  \item{\code{weights} are the weights,}
-
-  \item{\code{n} is the window size,}
-
-  \item{\code{N} is the number of non-zero \code{weights}
-  passed,}
-
-  \item{\code{ind} is the current position along vector
-  \code{x}.} }
-
-  Because the variables are being passed by reference, you
-  should \bold{not} modify them, unless you're prepared for
-  strange behavior. See examples for a potential usage.
+  which are passed in from the generated \R function.
 }
 \examples{
 \dontrun{
 ## implement a weighted rolling 'sum of squares'
 fun <- "
 double out = 0;
-const double m = mean( X_SUB );
-for( int i=0; i < n; i++ ) {
-  out += weights[i] * ( (X(i)-m) * (X(i)-m) ) / (N-1);
+for( int i=0; i < x.size(); i++ ) {
+  out += weights[i] * x[i] * x[i];
   }
-return out;
+return( out );
 "
-
-rolling_var <- rollit_raw( fun )
+rolling_sumsq <- rollit_raw( fun )
 x <- 1:5
-rolling_var( x, 5 ) == var(x)
-
-## a (slow-ish) implementation of rolling kurtosis
-fun <- "
-double numerator = 0;
-double denominator = 0;
-const double m = mean( X_SUB );
-for( int i=0; i < n; i++ ) {
-  double tmp = ( X(i) - m ) * ( X(i) - m );
-  numerator += tmp * tmp;
-  denominator += tmp;
-}
-return N * numerator / ( denominator * denominator );
-"
-
-rolling_kurt <- rollit_raw( fun )
-x <- rnorm(100)
-rolling_kurt(x, 20)
+rolling_sumsq( x, 5 ) == sum( x^2 )
 }
 }
 
