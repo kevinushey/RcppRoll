@@ -9,28 +9,32 @@
 #' 
 #' @param fun A character string defining the function call. The function must be in 
 #' terms of \code{x}. The function will be applied individually 
-#' to each element being 'roll'ed over, unless \code{vector=TRUE} is set.
-#' @param vector boolean; if \code{TRUE}, the function supplied attempts to take
-#' the entire vector passed, and returns a scalar result. Otherwise, we
-#' apply the function to each element of the vector \code{x} individually.
-#' @param const_vars Constant variables you would like to 'live' within
+#' to each element being 'roll'ed over, unless \code{vector} is \code{TRUE}.
+#' @param vector boolean; if \code{TRUE}, then \code{fun} is a scalar-valued
+#' function of a vector, rather than a function to apply to each element
+#' individually.
+#' @param const_vars Constant variables that will live within
 #' the sourced C++ function. Format is a named \code{list}; e.g, you
 #' could pass \code{list(e=exp(1))} to have \code{e} as a constant variable
-#' available in the function you're calling. Note that the variable \code{N}
-#' is fixed to be the number of non-zero weights passed.
+#' available in the function being called. Note that the variable \code{N}
+#' is fixed to be the number of non-zero weights passed, to facilitate the use
+#' of \code{0} weights in terms of skipping elements.
 #' @param combine character; typically one of \code{"+", "-", "*", "/"}, but
 #' any operator usable as a C++ compound assignment operator is accepted.
-#' When \code{vector} is \code{FALSE}, this specifies how each element should
-#' be combined in the rolling function.
-#' @param final_trans A final transformation to perform after 'rolling'
-#' over each element in the vector \code{x}.
+#' This specifies how each element should be combined in the rolling function.
+#' Only used when \code{vector} is \code{FALSE}.
+#' @param final_trans A final transformation to perform after either 'rolling'
+#' over each element in the vector \code{x} (with \code{vector=FALSE}), 
+#' or after applying a scalar-valued function of a vector (with \code{vector=TRUE}).
+#' Must be in terms of \code{x}.
 #' @param includes Other C++ libraries to include. For example, to include
 #' \code{boost/math.hpp}, you would pass
-#' \code{c("boost/math.hpp")}.
+#' \code{c("<boost/math.hpp>")}.
 #' @param depends Other libraries to link to. Linking is done through
 #' Rcpp attributes.
 #' @param inline boolean; mark the function generated as \code{inline}?
 #' This may or may not increase execution speed.
+#' @param name string; a name to internally assign to your generated C++ functions.
 #' @param ... Additional arguments passed to \code{sourceCpp}.
 #' @return A wrapper \R function to compiled C++ files, as generated through
 #' \code{sourceCpp}. See \code{\link{rollit_example}} for more information on the
@@ -43,12 +47,10 @@
 #' inspection of the generated C++ code, and \code{\link{rollit_raw}} for
 #' wrapping in your own C++ code.
 #' @note All functions generated use Rcpp's \code{NumericVector} and
-#' \code{NumericMatrix} to interface with \R vectors and matrices. Because of
-#' this, any function that you would like to call on the whole vector being
-#' rolled over (e.g, if you choose \code{vector=TRUE}) needs to be compatible 
-#' with the Rcpp \code{NumericVector}. Elements within these vectors are 
+#' \code{NumericMatrix} to interface with \R vectors and matrices. 
+#' Elements within these vectors are 
 #' translated as \code{double}s so any function that receives a \code{double} 
-#' will work fine (e.g, if you choose \code{vector=FALSE}).
+#' will work fine.
 #' 
 #' If you want to just write your own C++ function to wrap into a 'rolling'
 #' interface, see \code{\link{rollit_raw}}.
@@ -62,9 +64,6 @@
 #' rolling_sqsum( x, 4 )
 #' rolling_sqsum( x, 4, by.column=FALSE )
 #' cbind( as.vector(rolling_sqsum(x, 4)), apply(x, 2, function(x) { sum(x)^2 } ) )
-#' 
-#' ## use the Rcpp sugar function 'mean' -- let's compute a 'sqrt mean'
-#' rolling_mean <- rollit( "mean(x)", vector=TRUE, final_trans="sqrt( x )" )
 #' 
 #' ## implement your own variance function
 #' ## we can use the sugar function 'mean' to get
@@ -86,7 +85,7 @@
 #' rolling_prod <- rollit( combine="*" )
 #' rolling_prod( 1:10, 2 )
 #' 
-#' ## using weights
+#' ## using weights to specify something like a 'by' argument
 #' rolling_prod( 1:10, 3, weights=c(1,0,1) )
 #' 
 #' ## a benchmark
@@ -108,6 +107,7 @@ rollit <- function( fun="x",
                     includes=NULL, 
                     depends=NULL,
                     inline=TRUE,
+                    name=NULL,
                     ... ) {
   
   ## error checks
@@ -127,10 +127,12 @@ rollit <- function( fun="x",
     stop("'fun' must be in terms of a variable 'x'")
   }
   
-  ## random name
-  name <- paste( sep="", collapse="", c("z",
-                                        sample( c( letters, LETTERS, 0:9), size=20, replace=TRUE )
-  ) )
+  ## random name if null
+  if( is.null(name) ) {
+    name <- paste( sep="", collapse="", c("z",
+                                          sample( c( letters, LETTERS, 0:9), size=20, replace=TRUE )
+    ) )
+  }  
   
   ## environment for cppSource generated files
   cpp_env <- new.env()
@@ -171,7 +173,7 @@ rollit <- function( fun="x",
   }
   if( !is.null(includes) ) {
     for( include in includes ) {
-      w( paste0("#include <", include, ">") )
+      w( paste0("#include ", include ) )
       w()
     }
   }
@@ -179,11 +181,15 @@ rollit <- function( fun="x",
   ## namespace
   w("using namespace Rcpp;")
   w()
+  w("typedef NumericVector::iterator iter;")
+  w("typedef NumericVector NV;")
+  w("typedef NumericMatrix NM;")
+  w()
   
   ## wrap the function provided by the user
   
   if( inline) w("inline")
-  w("double ", name, "(NumericVector x, const NumericVector weights, const int N) {")
+  w("double ", name, "(NV& x, NV& weights, const int& n, const int& N, const int& ind) {")
   if( combine %in% c("+", "-") ) { 
     w1("double out_ = 0;")
   } else {
@@ -191,25 +197,29 @@ rollit <- function( fun="x",
   }
   
   ## constant variables
-  for( i in seq_along(const_vars) ) {
-    if( !is.null(const_vars) ) {
-      w1("const double ", names(const_vars)[i], " = ", const_vars[i], ";")
+  ## be sure to parse any functions of x within the constant variables
+  if( !is.null(const_vars) ) {
+    for( i in seq_along(const_vars) ) {
+      tmp <- gsub( funky_regex, "\\1\\2\\3\\4\\5[ seq(ind, ind+n-1) ]", const_vars[i], perl=TRUE )
+      w1("const double ", names(const_vars)[i], " = ", tmp, ";")
     }
   }
   
-  ## funky parser
-  (parsed_fun <- gsub( funky_regex, "\\1\\2\\3\\4\\5[i]", fun, perl=TRUE ))
   
-  ## apply function elementwise
-  if( !vector ) {
-    w1("for( int i=0; i < x.size(); i++ ) {")
+  ## funky parser
+  (parsed_fun <- gsub( funky_regex, "\\1\\2\\3\\4\\5[i+ind]", fun, perl=TRUE ))
+  
+  ## apply function as vector
+  if( vector ) {
+    w1("out_ = ", gsub( funky_regex, "\\1\\2\\3\\4\\5[ seq(ind, ind+n-1) ] * weights", fun, perl=TRUE ), ";")
+  } else { ## apply function elementwise
+    w1("for( int i=0; i < n; i++ ) {")
     w2("if( weights[i] != 0 ) {")
     w3("out_ ", combine, "= weights[i] * ", parsed_fun, ";")
     w2("}")
-    w1("}")
-  } else {
-    w1("out_ = ", fun, ";")
-  }
+    w1("}")    
+  }  
+    
   if( !is.null( final_trans ) ) {
     w1("out_ = ", gsub( funky_regex, "\\1out_", final_trans, perl=TRUE), ";" )
   }
@@ -219,16 +229,17 @@ rollit <- function( fun="x",
   
   ## numericvector call
   w("// [[Rcpp::export]]")
-  w("NumericVector ", name, "_numeric( NumericVector x, int n, const NumericVector weights ) {" )
+  w("NumericVector ", name, "_numeric( NumericVector x, int n, NumericVector weights ) {" )
   w1()
   w1("int len = x.size();")
   w1("int len_out = len - n + 1;")
   w1("int N = sum( sign( weights*weights ) );")
   w1()
-  w1("NumericVector out = no_init( len_out );")
+  w1("NV out = no_init( len_out );")
   w1()
-  w1("for( int i=0; i < len_out; i++ ) {") 
-  w2("out[i] = ", name, "( x[ seq(i, i+n-1) ], weights, N );")
+  w1("for( int ind=0; ind < len_out; ind++ ) {") 
+  w2()
+  w2("out[ind] = ", name, "(x, weights, n, N, ind );")
   w1("}")
   w1()
   w1("return out;")
@@ -239,7 +250,7 @@ rollit <- function( fun="x",
   ## function definition -- matrix
   
   w("// [[Rcpp::export]]")
-  w("NumericMatrix ", name, "_matrix( NumericMatrix A, int n, bool by_column, const NumericVector weights ) {")
+  w("NumericMatrix ", name, "_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {")
   w1()
   w1("int nRow = A.nrow();")
   w1("int nCol = A.ncol();")
@@ -253,8 +264,9 @@ rollit <- function( fun="x",
   w2("for( int j=0; j < nCol; j++ ) {")
   w3()
   w3("NumericVector tmp = A(_, j);")
-  w3("for( int i=0; i < nRow - n + 1; i++ ) {")
-  w4("B(i, j) = ", name, "( tmp[ seq(i, i+n-1) ], weights, N );")
+  w3("for( int ind=0; ind < nRow - n + 1; ind++ ) {")
+  w4()
+  w4("B(ind, j) = ", name, "( tmp, weights, n, N, ind );")
   w3("}")
   w2("}")
   w2()
@@ -269,8 +281,9 @@ rollit <- function( fun="x",
   w2("for( int i=0; i < nRow; i++ ) {")
   w3()
   w3("NumericVector tmp = A(i, _);")
-  w3("for( int j=0; j < nCol - n + 1; j++ ) {")
-  w4("B(i, j) = ", name, "( tmp[ seq(j, j+n-1) ], weights, N );")
+  w3("for( int ind=0; ind < nCol - n + 1; ind++ ) {")
+  w4()
+  w4("B(i, ind) = ", name, "( tmp, weights, n, N, ind );")
   w3("}")
   w2("}")
   w2()

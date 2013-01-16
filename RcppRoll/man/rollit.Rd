@@ -4,39 +4,42 @@
 \usage{
   rollit(fun = "x", vector = FALSE, const_vars = NULL,
     combine = "+", final_trans = NULL, includes = NULL,
-    depends = NULL, inline = TRUE, ...)
+    depends = NULL, inline = TRUE, name = NULL, ...)
 }
 \arguments{
   \item{fun}{A character string defining the function call.
   The function must be in terms of \code{x}. The function
   will be applied individually to each element being
-  'roll'ed over, unless \code{vector=TRUE} is set.}
+  'roll'ed over, unless \code{vector} is \code{TRUE}.}
 
-  \item{vector}{boolean; if \code{TRUE}, the function
-  supplied attempts to take the entire vector passed, and
-  returns a scalar result. Otherwise, we apply the function
-  to each element of the vector \code{x} individually.}
+  \item{vector}{boolean; if \code{TRUE}, then \code{fun} is
+  a scalar-valued function of a vector, rather than a
+  function to apply to each element individually.}
 
-  \item{const_vars}{Constant variables you would like to
-  'live' within the sourced C++ function. Format is a named
+  \item{const_vars}{Constant variables that will live
+  within the sourced C++ function. Format is a named
   \code{list}; e.g, you could pass \code{list(e=exp(1))} to
   have \code{e} as a constant variable available in the
-  function you're calling. Note that the variable \code{N}
-  is fixed to be the number of non-zero weights passed.}
+  function being called. Note that the variable \code{N} is
+  fixed to be the number of non-zero weights passed, to
+  facilitate the use of \code{0} weights in terms of
+  skipping elements.}
 
   \item{combine}{character; typically one of \code{"+",
   "-", "*", "/"}, but any operator usable as a C++ compound
-  assignment operator is accepted. When \code{vector} is
-  \code{FALSE}, this specifies how each element should be
-  combined in the rolling function.}
+  assignment operator is accepted. This specifies how each
+  element should be combined in the rolling function. Only
+  used when \code{vector} is \code{FALSE}.}
 
   \item{final_trans}{A final transformation to perform
-  after 'rolling' over each element in the vector
-  \code{x}.}
+  after either 'rolling' over each element in the vector
+  \code{x} (with \code{vector=FALSE}), or after applying a
+  scalar-valued function of a vector (with
+  \code{vector=TRUE}). Must be in terms of \code{x}.}
 
   \item{includes}{Other C++ libraries to include. For
   example, to include \code{boost/math.hpp}, you would pass
-  \code{c("boost/math.hpp")}.}
+  \code{c("<boost/math.hpp>")}.}
 
   \item{depends}{Other libraries to link to. Linking is
   done through Rcpp attributes.}
@@ -44,6 +47,9 @@
   \item{inline}{boolean; mark the function generated as
   \code{inline}? This may or may not increase execution
   speed.}
+
+  \item{name}{string; a name to internally assign to your
+  generated C++ functions.}
 
   \item{...}{Additional arguments passed to
   \code{sourceCpp}.}
@@ -68,13 +74,9 @@
 \note{
   All functions generated use Rcpp's \code{NumericVector}
   and \code{NumericMatrix} to interface with \R vectors and
-  matrices. Because of this, any function that you would
-  like to call on the whole vector being rolled over (e.g,
-  if you choose \code{vector=TRUE}) needs to be compatible
-  with the Rcpp \code{NumericVector}. Elements within these
-  vectors are translated as \code{double}s so any function
-  that receives a \code{double} will work fine (e.g, if you
-  choose \code{vector=FALSE}).
+  matrices. Elements within these vectors are translated as
+  \code{double}s so any function that receives a
+  \code{double} will work fine.
 
   If you want to just write your own C++ function to wrap
   into a 'rolling' interface, see \code{\link{rollit_raw}}.
@@ -89,9 +91,6 @@ rolling_sqsum <- rollit( final_trans="x*x" )
 rolling_sqsum( x, 4 )
 rolling_sqsum( x, 4, by.column=FALSE )
 cbind( as.vector(rolling_sqsum(x, 4)), apply(x, 2, function(x) { sum(x)^2 } ) )
-
-## use the Rcpp sugar function 'mean' -- let's compute a 'sqrt mean'
-rolling_mean <- rollit( "mean(x)", vector=TRUE, final_trans="sqrt( x )" )
 
 ## implement your own variance function
 ## we can use the sugar function 'mean' to get
@@ -113,7 +112,7 @@ rolling_log10( 10^(1:5), 2 )
 rolling_prod <- rollit( combine="*" )
 rolling_prod( 1:10, 2 )
 
-## using weights
+## using weights to specify something like a 'by' argument
 rolling_prod( 1:10, 3, weights=c(1,0,1) )
 
 ## a benchmark

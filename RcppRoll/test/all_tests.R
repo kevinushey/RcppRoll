@@ -11,7 +11,7 @@ close_enough( apply(x, 2, mean), as.numeric(roll_mean(x, 4)) )
 
 close_enough( apply(x, 2, median), as.numeric(roll_median(x, 4)) )
 
-rolling_mean <- rollit("x", const_vars=list(n="LENGTH(x)"), final_trans="x/n")
+rolling_mean <- rollit(final_trans="x/N")
 
 close_enough( apply(x, 2, mean), as.numeric( rolling_mean(x, 4) ) )
 close_enough( apply(x, 1, mean), as.numeric( rolling_mean(x, 4, FALSE) ) )
@@ -34,16 +34,16 @@ rolling_prod <- rollit(combine="*")
 close_enough( rolling_prod(x, 5), prod(x) )
 close_enough( rolling_prod(x, 5, weights=c(1,0,1,0,1), normalize=FALSE), prod(1, 3, 5) )
 
-fun <- "
-double out = 0;
-for( int i=1; i < x.size(); i++ ) {
-  out += (x[i] - x[i-1]) / x[i-1];
-}
-return out;
-"
+x <- matrix( rnorm(1E5), ncol=1E3 )
 
-rolling_fun <- rollit_raw( fun )
-rolling_fun( 1:5, 5)
-rolling_fun( 1:5, 3, weights=c(1,0,1), normalize=FALSE )
+library(zoo)
+library(microbenchmark)
 
-rolling_mean <- rollit("mean(x)", vector=TRUE)
+microbenchmark(
+  roll_mean(x, 10),
+  rolling_mean(x, 10),
+  zoo::rollmean(x, 10),
+  times=10
+  )
+
+all.equal( as.vector(roll_mean(x, 100)), as.vector(zoo::rollmean(x, 100)) )

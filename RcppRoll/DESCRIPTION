@@ -7,8 +7,8 @@ Author: Kevin Ushey
 Maintainer: Kevin Ushey <kevinushey@gmail.com>
 Description: RcppRoll supplies fast functions for 'roll'ing over vectors and
     matrices, e.g. rolling means, medians and variances. It also provides the
-    utility functions 'rollit' and 'rollit_raw' for generating your own C++
-    backed rolling functions for faster execution.
+    utility functions 'rollit' and 'rollit_raw' as an interface for generating
+    your own C++ backed rolling functions.
 License: GPL (>= 2)
 Depends:
     R (>= 2.15.1),
@@ -27,7 +27,6 @@ Collate:
     'roll_sd.R'
     'roll_prod.R'
     'roll_median.R'
-    'roll_stddev.R'
     'roll_max.R'
     'roll_min.R'
     'get_rollit_source.R'
