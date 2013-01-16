@@ -3,7 +3,7 @@
 \title{'rollit' Output -- Example Function}
 \usage{
   rollit_example(x, n, by.column, weights,
-    normalize = TRUE)
+    normalize = FALSE)
 }
 \arguments{
   \item{x}{A vector/matrix of numeric type.}
@@ -14,8 +14,7 @@
   columns, otherwise we loop over rows.}
 
   \item{weights}{a vector of length \code{n}; specify the
-  (relative) weighting to assign to each element in the
-  window. Note that these weights will be normalized.}
+  weighting to assign to each element in the window.}
 
   \item{normalize}{boolean; if \code{TRUE} we normalize the
   weights to sum to 1.}
@@ -27,7 +26,12 @@
 }
 \description{
   This presents the function signature for the output of
-  \link{rollit}.
+  \code{\link{rollit}}.
+}
+\note{
+  Elements in \code{weights} equal to 0 are skipped, so
+  that e.g. setting \code{weights = c(1,0,1,0,1)} would
+  skip every 2nd and 4th element in each length-5 window.
 }
 \seealso{
   \code{\link{rollit}}

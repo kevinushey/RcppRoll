@@ -1,8 +1,8 @@
 \name{get_rollit_source}
 \alias{get_rollit_source}
-\title{Get and Edit Source File Associated with 'rollit' Function}
+\title{Get and Edit Source File Associated with User-Generated 'rollit' Function}
 \usage{
-  get_rollit_source(fun, RStudio = FALSE, edit = TRUE, ...)
+  get_rollit_source(fun, edit = TRUE, RStudio = FALSE, ...)
 }
 \arguments{
   \item{fun}{The generated 'rollit' function.}

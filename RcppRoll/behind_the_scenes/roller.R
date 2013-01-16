@@ -1,9 +1,7 @@
 source("./behind_the_scenes/roll_R_file.R")
-source("./behind_the_scenes/roll_Rcpp_file.R")
-source("./behind_the_scenes/roll_RcppArmadillo_file.R")
 
 #' This function acts as a generator for any of the 'roll'ing functions
-#' used in this package.
+#' used in this package. Note that we only roll the accompanying \R files here.
 #' 
 #' @param fun the function name, as exported from one of the \code{includes}.
 #' @param includes header includes. by default we include \code{Rcpp.h}.
@@ -17,8 +15,8 @@ roller <- function( fun,
                     by="Rcpp"
 ) {
   
-  cat("Rolling C++ source file for", fun, "...\n")
-  roll_Rcpp_file( fun, includes, depends, types )
+  ## cat("Rolling C++ source file for", fun, "...\n")
+  ## roll_Rcpp_file( fun, includes, depends, types )
   cat("Rolling R source file for", fun, "...\n")
   roll_R_file( fun, includes, types, by )
   cat("Done!")
@@ -32,21 +30,29 @@ roller.arma <- function( fun,
                          by="RcppArmadillo"
 ) {
   
-  cat("Rolling C++ source file for", fun, "...\n")
-  roll_RcppArmadillo_file( fun, includes, depends, types )
+  ## cat("Rolling C++ source file for", fun, "...\n")
+  ## roll_RcppArmadillo_file( fun, includes, depends, types )
   cat("Rolling R source file for", fun, "...\n")
   roll_R_file( fun, includes, types, by )
   cat("Done!")
   
 }
 
+# initialize
+# outFile <- file.path( getwd(), "src", "source_files.cpp" )
+# conn <- file( outFile, open='w' )
+# cat( "#include <RcppArmadillo.h>\n", file=conn )
+# cat( "using namespace Rcpp;\n\n", file=conn )
+# close( conn )
+
 roller("mean")
+#roller("median")
 roller("sum")
 roller("var")
 roller("sd")
 roller("max")
 roller("min")
+roller("prod")
 
-roller.arma("median")
-roller.arma("prod")
-roller.arma("stddev")
+#roller.arma("median")
+#roller.arma("prod")
