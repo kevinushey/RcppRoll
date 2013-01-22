@@ -4,6 +4,9 @@
 *.o
 *.so
 *.dll
+RcppRoll/test
 RcppRoll/src-i386
 RcppRoll/src-x86_64
 RcppRoll/src-x64
+.DS_Store
+.*

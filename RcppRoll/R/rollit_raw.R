@@ -85,6 +85,8 @@ rollit_raw <- function( fun,
                         additional=NULL,
                         ...) {
   
+  require( RcppArmadillo )
+  
   ## random name if null
   if( is.null(name) ) {
     name <- paste( sep="", collapse="", c("z",
@@ -120,15 +122,15 @@ rollit_raw <- function( fun,
   }
   
   ## depends
-  if( !is.null(depends) ) {
-    x <- paste( depends, collapse=", ")
-    w("// [[Rcpp::depends(", x, ")")
+  if( is.null(depends) ) {
+    w("// [[Rcpp::depends(RcppArmadillo)]]")
+  } else {
+    w("// [[Rcpp::depends(RcppArmadillo, ",
+      paste( depends, collapse=", " ),
+      ")")
   }
   
-  ## Write out the includes
-  if( !("RcppArmadillo" %in% depends) ) {
-    w("#include <Rcpp.h>")
-  }
+  w("#include <RcppArmadillo.h>")
   if( !is.null(includes) ) {
     for( include in includes ) {
       w( paste0("#include ", include) )
