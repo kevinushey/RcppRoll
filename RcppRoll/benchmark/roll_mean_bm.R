@@ -9,7 +9,7 @@ rolling_mean <- rollit(final_trans="x/N")
 rolling_mean2 <- rollit(final_trans="x/N", inline=FALSE)
 
 close_enough <- function(x, y) {
-  all.equal(x, y, tolerance = 2*.Machine$double.eps)
+  all.equal(x, y)
 }
 
 microbenchmark(
@@ -26,6 +26,7 @@ close_enough( c(roll_mean(y, 10)), c(zoo::rollmean(y, 10)) )
 
 microbenchmark(
   roll_mean(y, 10),
+  rolling_mean(y, 10),
   roll_median(y, 10),
   zoo::rollmean(y, 10),
   zoo::rollapply(y, 10, mean),
@@ -39,7 +40,6 @@ microbenchmark(
   roll_median(y, 10),
   roll_prod(y, 10),
   roll_sd(y, 10),
-  roll_stddev(y, 10),
   roll_sum(y, 10),
   roll_var(y, 10),
   times=10
@@ -47,7 +47,9 @@ microbenchmark(
 
 microbenchmark(
   roll_mean(y, nrow(y)),
-  colMeans(y)
+  colMeans(y),
+  roll_mean(y, ncol(y), FALSE),
+  rowMeans(y)
   )
 
 ## by groups

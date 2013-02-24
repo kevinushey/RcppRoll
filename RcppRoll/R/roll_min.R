@@ -16,13 +16,13 @@ roll_min <- function( x, n, by.column=TRUE, weights=rep(1,n), normalize=FALSE ) 
 	}
 	
 	if( is.matrix(x) ) {
-		if( by.column && n > nrow(x) ) {
-			stop("n cannot be greater than nrow(x).")
-		} else if( !by.column && n > ncol(x) ) {
-			stop("n cannot be greater than ncol(x).")
+		if( by.column ) {
+			stopifnot( n <= nrow(x) )
+			return( .Call( "RcppRoll_roll_min_numeric_matrix", x, as.integer(n), as.numeric(weights), PACKAGE="RcppRoll" ) )
+		} else {
+			stopifnot( n <= ncol(x) )
+			return( t( .Call( "RcppRoll_roll_min_numeric_matrix", t(x), as.integer(n), as.numeric(weights), PACKAGE="RcppRoll" ) ) )
 		}
-		
-		return( .Call( "RcppRoll_roll_min_numeric_matrix", x, as.integer(n), as.logical(by.column), as.numeric(weights), PACKAGE="RcppRoll" ) )
 	}
 	
 	if( is.vector(x) ) {
@@ -32,7 +32,7 @@ roll_min <- function( x, n, by.column=TRUE, weights=rep(1,n), normalize=FALSE ) 
 		return( as.numeric( .Call( "RcppRoll_roll_min_numeric_vector", x, as.integer(n), as.numeric(weights), PACKAGE="RcppRoll" ) ) )
 	}
 	
-stop("the x supplied is neither a vector or a matrix")
+	stop("the x supplied is neither a vector or a matrix")
 
 }
 

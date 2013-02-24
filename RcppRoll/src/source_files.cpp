@@ -1,12 +1,14 @@
 #include <RcppArmadillo.h>
 using namespace Rcpp;
 
-typedef NumericVector::iterator iter;
-typedef NumericVector NV;
-typedef NumericMatrix NM;
-
-inline
-double roll_mean(NV& x, NV& weights, const int& n, const int& N, const int& ind) {
+template <class T>
+inline double roll_mean(
+  const T& x, 
+  const NumericVector& weights, 
+  const int& n, 
+  const int& N, 
+  const int& ind) {
+    
   double out_ = 0;
 	for( int i=0; i < n; i++ ) {
 		if( weights[i] != 0 ) {
@@ -24,11 +26,10 @@ NumericVector roll_mean_numeric_vector( NumericVector x, int n, NumericVector we
 	int len_out = len - n + 1;
 	int N = sum( sign( weights*weights ) );
 	
-	NV out = no_init( len_out );
+	NumericVector out = no_init( len_out );
 	
-	for( int ind=0; ind < len_out; ind++ ) {
-		
-		out[ind] = roll_mean(x, weights, n, N, ind );
+	for( int i=0; i < len_out; i++ ) {
+		out[i] = roll_mean(x, weights, n, N, i );
 	}
 	
 	return out;
@@ -36,47 +37,33 @@ NumericVector roll_mean_numeric_vector( NumericVector x, int n, NumericVector we
 }
 
 // [[Rcpp::export]]
-NumericMatrix roll_mean_numeric_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {
+NumericMatrix roll_mean_numeric_matrix( NumericMatrix A, int n, NumericVector weights ) {
 	
 	int nRow = A.nrow();
 	int nCol = A.ncol();
 	int N = sum( sign( weights*weights ) );
-	if( by_column ) {
-		
-		NumericMatrix B( nRow - n + 1, nCol );
-		
-		for( int j=0; j < nCol; j++ ) {
-			
-			NumericVector tmp = A(_, j);
-			for( int ind=0; ind < nRow - n + 1; ind++ ) {
-				
-				B(ind, j) = roll_mean( tmp, weights, n, N, ind );
-			}
-		}
-		
-	return B;
 	
-	} else {
+  NumericMatrix B( nRow - n + 1, nCol );
 		
-		NumericMatrix B( nRow, nCol - n + 1 );
-		
-		for( int i=0; i < nRow; i++ ) {
-			
-			NumericVector tmp = A(i, _);
-			for( int ind=0; ind < nCol - n + 1; ind++ ) {
-				
-				B(i, ind) = roll_mean( tmp, weights, n, N, ind );
-			}
+	for( int j=0; j < nCol; j++ ) {
+		NumericMatrix::Column tmp = A(_, j);
+		for( int ind=0; ind < nRow - n + 1; ind++ ) {
+			B(ind, j) = roll_mean( tmp, weights, n, N, ind );
 		}
-		
-	return B;
-	
 	}
-
+	
+	return B;
+	
 }
 
-inline
-double roll_sum(NV& x, NV& weights, const int& n, const int& N, const int& ind) {
+template <class T>
+inline double roll_sum(
+  const T& x, 
+  const NumericVector& weights, 
+  const int& n, 
+  const int& N, 
+  const int& ind) {
+    
   double out_ = 0;
 	for( int i=0; i < n; i++ ) {
 		if( weights[i] != 0 ) {
@@ -93,10 +80,9 @@ NumericVector roll_sum_numeric_vector( NumericVector x, int n, NumericVector wei
 	int len_out = len - n + 1;
 	int N = sum( sign( weights*weights ) );
 	
-	NV out = no_init( len_out );
+	NumericVector out = no_init( len_out );
 	
 	for( int ind=0; ind < len_out; ind++ ) {
-		
 		out[ind] = roll_sum(x, weights, n, N, ind );
 	}
 	
@@ -105,49 +91,45 @@ NumericVector roll_sum_numeric_vector( NumericVector x, int n, NumericVector wei
 }
 
 // [[Rcpp::export]]
-NumericMatrix roll_sum_numeric_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {
+NumericMatrix roll_sum_numeric_matrix( NumericMatrix A, int n, NumericVector weights ) {
 	
 	int nRow = A.nrow();
 	int nCol = A.ncol();
 	int N = sum( sign( weights*weights ) );
-	if( by_column ) {
-		
-		NumericMatrix B( nRow - n + 1, nCol );
-		
-		for( int j=0; j < nCol; j++ ) {
-			
-			NumericVector tmp = A(_, j);
-			for( int ind=0; ind < nRow - n + 1; ind++ ) {
-				
-				B(ind, j) = roll_sum( tmp, weights, n, N, ind );
-			}
-		}
-		
-	return B;
 	
-	} else {
+  NumericMatrix B( nRow - n + 1, nCol );
 		
-		NumericMatrix B( nRow, nCol - n + 1 );
+	for( int j=0; j < nCol; j++ ) {
 		
-		for( int i=0; i < nRow; i++ ) {
-			
-			NumericVector tmp = A(i, _);
-			for( int ind=0; ind < nCol - n + 1; ind++ ) {
-				
-				B(i, ind) = roll_sum( tmp, weights, n, N, ind );
-			}
+		NumericMatrix::Column tmp = A(_, j);
+		for( int ind=0; ind < nRow - n + 1; ind++ ) {
+			B(ind, j) = roll_sum( tmp, weights, n, N, ind );
 		}
-		
-	return B;
-	
 	}
+	
+  return B;
+	
+} 
 
-}
-
-inline
-double roll_var(NV& x, NV& weights, const int& n, const int& N, const int& ind) {
+template <class T>
+inline double roll_var(
+  T& x, 
+  const NumericVector& weights, 
+  const int& n, 
+  const int& N, 
+  const int& ind) {
+    
   double out_ = 0;
-	const double m = mean(x[ seq(ind, ind+n-1) ]);
+  double m = 0;
+  
+  for( int i=0; i < n; i++ ) {
+    if( weights[i] != 0 ) {
+      m += x[i+ind];
+    }
+  }
+  
+  m = m / N;
+  
 	for( int i=0; i < n; i++ ) {
 		if( weights[i] != 0 ) {
 			out_ += weights[i] * ((x[i+ind]-m)*(x[i+ind]-m));
@@ -164,10 +146,9 @@ NumericVector roll_var_numeric_vector( NumericVector x, int n, NumericVector wei
 	int len_out = len - n + 1;
 	int N = sum( sign( weights*weights ) );
 	
-	NV out = no_init( len_out );
+	NumericVector out = no_init( len_out );
 	
 	for( int ind=0; ind < len_out; ind++ ) {
-		
 		out[ind] = roll_var(x, weights, n, N, ind );
 	}
 	
@@ -176,50 +157,46 @@ NumericVector roll_var_numeric_vector( NumericVector x, int n, NumericVector wei
 }
 
 // [[Rcpp::export]]
-NumericMatrix roll_var_numeric_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {
+NumericMatrix roll_var_numeric_matrix( NumericMatrix A, int n, NumericVector weights ) {
 	
 	int nRow = A.nrow();
 	int nCol = A.ncol();
 	int N = sum( sign( weights*weights ) );
-	if( by_column ) {
-		
-		NumericMatrix B( nRow - n + 1, nCol );
-		
-		for( int j=0; j < nCol; j++ ) {
-			
-			NumericVector tmp = A(_, j);
-			for( int ind=0; ind < nRow - n + 1; ind++ ) {
-				
-				B(ind, j) = roll_var( tmp, weights, n, N, ind );
-			}
-		}
-		
-	return B;
 	
-	} else {
+  NumericMatrix B( nRow - n + 1, nCol );
 		
-		NumericMatrix B( nRow, nCol - n + 1 );
+	for( int j=0; j < nCol; j++ ) {
 		
-		for( int i=0; i < nRow; i++ ) {
-			
-			NumericVector tmp = A(i, _);
-			for( int ind=0; ind < nCol - n + 1; ind++ ) {
-				
-				B(i, ind) = roll_var( tmp, weights, n, N, ind );
-			}
+		NumericMatrix::Column tmp = A(_, j);
+		for( int ind=0; ind < nRow - n + 1; ind++ ) {
+			B(ind, j) = roll_var( tmp, weights, n, N, ind );
 		}
-		
-	return B;
-	
 	}
+	
+  return B;
+	
+} 
 
-}
-
-inline
-double roll_sd(NV& x, NV& weights, const int& n, const int& N, const int& ind) {
+template <class T>
+inline double roll_sd(
+  const T& x, 
+  const NumericVector& weights, 
+  const int& n, 
+  const int& N, 
+  const int& ind) {
+    
   double out_ = 0;
-	const double m = mean(x[ seq(ind, ind+n-1) ]);
-	for( int i=0; i < n; i++ ) {
+	double m = 0;
+  
+  for( int i=0; i < n; i++ ) {
+    if( weights[i] != 0 ) {
+      m += x[i+ind];
+    }
+  }
+  
+  m = m / N;
+  
+  for( int i=0; i < n; i++ ) {
 		if( weights[i] != 0 ) {
 			out_ += weights[i] * ((x[i+ind]-m)*(x[i+ind]-m));
 		}
@@ -235,10 +212,9 @@ NumericVector roll_sd_numeric_vector( NumericVector x, int n, NumericVector weig
 	int len_out = len - n + 1;
 	int N = sum( sign( weights*weights ) );
 	
-	NV out = no_init( len_out );
+	NumericVector out = no_init( len_out );
 	
 	for( int ind=0; ind < len_out; ind++ ) {
-		
 		out[ind] = roll_sd(x, weights, n, N, ind );
 	}
 	
@@ -247,57 +223,45 @@ NumericVector roll_sd_numeric_vector( NumericVector x, int n, NumericVector weig
 }
 
 // [[Rcpp::export]]
-NumericMatrix roll_sd_numeric_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {
+NumericMatrix roll_sd_numeric_matrix( NumericMatrix A, int n, NumericVector weights ) {
 	
 	int nRow = A.nrow();
 	int nCol = A.ncol();
 	int N = sum( sign( weights*weights ) );
-	if( by_column ) {
-		
-		NumericMatrix B( nRow - n + 1, nCol );
-		
-		for( int j=0; j < nCol; j++ ) {
-			
-			NumericVector tmp = A(_, j);
-			for( int ind=0; ind < nRow - n + 1; ind++ ) {
-				
-				B(ind, j) = roll_sd( tmp, weights, n, N, ind );
-			}
-		}
-		
-	return B;
 	
-	} else {
+  NumericMatrix B( nRow - n + 1, nCol );
 		
-		NumericMatrix B( nRow, nCol - n + 1 );
+	for( int j=0; j < nCol; j++ ) {
 		
-		for( int i=0; i < nRow; i++ ) {
-			
-			NumericVector tmp = A(i, _);
-			for( int ind=0; ind < nCol - n + 1; ind++ ) {
-				
-				B(i, ind) = roll_sd( tmp, weights, n, N, ind );
-			}
+		NumericMatrix::Column tmp = A(_, j);
+		for( int ind=0; ind < nRow - n + 1; ind++ ) {
+			B(ind, j) = roll_sd( tmp, weights, n, N, ind );
 		}
-		
-	return B;
-	
 	}
-
+	
+	return B;
+	
 }
 
 
-inline
-double roll_max(NumericVector& x, NumericVector& weights, const int& n, const int& N, const int& ind) {
-double out = __DBL_MIN__;
-                          for( int i=0; i < n; i++ ) {
-                            if( x[i+ind] > out && weights[i] != 0 ) {
-                              out = x[i+ind];
-                            }
-                          }
-                          return out;
-                          
+template <class T>
+inline double roll_max(
+  const T& x, 
+  const NumericVector& weights, 
+  const int& n, 
+  const int& N, 
+  const int& ind) {
+    
+  double out = __DBL_MIN__;
+  for( int i=0; i < n; i++ ) {
+    if( x[i+ind] > out && weights[i] != 0 ) {
+      out = x[i+ind];
+    }
+  }
+  return out;
+  
 }
+
 // [[Rcpp::export]]
 NumericVector roll_max_numeric_vector( NumericVector x, int n, NumericVector weights ) {
   
@@ -308,7 +272,6 @@ NumericVector roll_max_numeric_vector( NumericVector x, int n, NumericVector wei
 	NumericVector out = no_init( len_out );
 	
 	for( int ind=0; ind < len_out; ind++ ) {
-		
 		out[ind] = roll_max(x, weights, n, N, ind );
 	}
 	
@@ -317,56 +280,44 @@ NumericVector roll_max_numeric_vector( NumericVector x, int n, NumericVector wei
 }
 
 // [[Rcpp::export]]
-NumericMatrix roll_max_numeric_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {
+NumericMatrix roll_max_numeric_matrix( NumericMatrix A, int n, NumericVector weights ) {
 	
 	int nRow = A.nrow();
 	int nCol = A.ncol();
 	int N = sum( sign( weights*weights ) );
-	if( by_column ) {
-		
-		NumericMatrix B( nRow - n + 1, nCol );
-		
-		for( int j=0; j < nCol; j++ ) {
-			
-			NumericVector tmp = A(_, j);
-			for( int ind=0; ind < nRow - n + 1; ind++ ) {
-				
-				B(ind, j) = roll_max( tmp, weights, n, N, ind );
-			}
-		}
-		
-	return B;
 	
-	} else {
+  NumericMatrix B( nRow - n + 1, nCol );
 		
-		NumericMatrix B( nRow, nCol - n + 1 );
+	for( int j=0; j < nCol; j++ ) {
 		
-		for( int i=0; i < nRow; i++ ) {
+		NumericMatrix::Column tmp = A(_, j);
+		for( int ind=0; ind < nRow - n + 1; ind++ ) {
 			
-			NumericVector tmp = A(i, _);
-			for( int ind=0; ind < nCol - n + 1; ind++ ) {
-				
-				B(i, ind) = roll_max( tmp, weights, n, N, ind );
-			}
+			B(ind, j) = roll_max( tmp, weights, n, N, ind );
 		}
-		
-	return B;
-	
 	}
+	
+  return B;
 
 }
 
-inline
-double roll_min(NumericVector& x, NumericVector& weights, const int& n, const int& N, const int& ind) {
-double out = __DBL_MAX__;
-                          for( int i=0; i < n; i++ ) {
-                            if( x[i+ind] < out && weights[i] != 0 ) {
-                              out = x[i+ind];
-                            }
-                          }
-                          return out;
-                          
+template <class T>
+inline double roll_min(
+  const T& x, 
+  NumericVector& weights, 
+  const int& n, 
+  const int& N, 
+  const int& ind) {
+    
+  double out = __DBL_MAX__;
+  for( int i=0; i < n; i++ ) {
+    if( x[i+ind] < out && weights[i] != 0 ) {
+      out = x[i+ind];
+    }
+  }
+  return out;
 }
+
 // [[Rcpp::export]]
 NumericVector roll_min_numeric_vector( NumericVector x, int n, NumericVector weights ) {
   
@@ -377,7 +328,6 @@ NumericVector roll_min_numeric_vector( NumericVector x, int n, NumericVector wei
 	NumericVector out = no_init( len_out );
 	
 	for( int ind=0; ind < len_out; ind++ ) {
-		
 		out[ind] = roll_min(x, weights, n, N, ind );
 	}
 	
@@ -386,42 +336,23 @@ NumericVector roll_min_numeric_vector( NumericVector x, int n, NumericVector wei
 }
 
 // [[Rcpp::export]]
-NumericMatrix roll_min_numeric_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {
+NumericMatrix roll_min_numeric_matrix( NumericMatrix A, int n, NumericVector weights ) {
 	
 	int nRow = A.nrow();
 	int nCol = A.ncol();
 	int N = sum( sign( weights*weights ) );
-	if( by_column ) {
-		
-		NumericMatrix B( nRow - n + 1, nCol );
-		
-		for( int j=0; j < nCol; j++ ) {
-			
-			NumericVector tmp = A(_, j);
-			for( int ind=0; ind < nRow - n + 1; ind++ ) {
-				
-				B(ind, j) = roll_min( tmp, weights, n, N, ind );
-			}
-		}
-		
-	return B;
 	
-	} else {
+  NumericMatrix B( nRow - n + 1, nCol );
 		
-		NumericMatrix B( nRow, nCol - n + 1 );
+	for( int j=0; j < nCol; j++ ) {
 		
-		for( int i=0; i < nRow; i++ ) {
-			
-			NumericVector tmp = A(i, _);
-			for( int ind=0; ind < nCol - n + 1; ind++ ) {
-				
-				B(i, ind) = roll_min( tmp, weights, n, N, ind );
-			}
+		NumericMatrix::Column tmp = A(_, j);
+		for( int ind=0; ind < nRow - n + 1; ind++ ) {
+			B(ind, j) = roll_min( tmp, weights, n, N, ind );
 		}
-		
-	return B;
-	
 	}
+	
+  return B;
 
 }
 
@@ -478,8 +409,14 @@ NumericMatrix roll_median_numeric_matrix( arma::mat A, int n, bool by_column ) {
 
 }
 
-inline
-double roll_prod(NV& x, NV& weights, const int& n, const int& N, const int& ind) {
+template <class T>
+inline double roll_prod(
+  const T& x, 
+  const NumericVector& weights, 
+  const int& n, 
+  const int& N, 
+  const int& ind) {
+    
   double out_ = 1;
 	for( int i=0; i < n; i++ ) {
 		if( weights[i] != 0 ) {
@@ -496,10 +433,9 @@ NumericVector roll_prod_numeric_vector( NumericVector x, int n, NumericVector we
 	int len_out = len - n + 1;
 	int N = sum( sign( weights*weights ) );
 	
-	NV out = no_init( len_out );
+	NumericVector out = no_init( len_out );
 	
 	for( int ind=0; ind < len_out; ind++ ) {
-		
 		out[ind] = roll_prod(x, weights, n, N, ind );
 	}
 	
@@ -508,41 +444,22 @@ NumericVector roll_prod_numeric_vector( NumericVector x, int n, NumericVector we
 }
 
 // [[Rcpp::export]]
-NumericMatrix roll_prod_numeric_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {
+NumericMatrix roll_prod_numeric_matrix( NumericMatrix A, int n, NumericVector weights ) {
 	
 	int nRow = A.nrow();
 	int nCol = A.ncol();
 	int N = sum( sign( weights*weights ) );
-	if( by_column ) {
-		
-		NumericMatrix B( nRow - n + 1, nCol );
-		
-		for( int j=0; j < nCol; j++ ) {
-			
-			NumericVector tmp = A(_, j);
-			for( int ind=0; ind < nRow - n + 1; ind++ ) {
-				
-				B(ind, j) = roll_prod( tmp, weights, n, N, ind );
-			}
-		}
-		
-	return B;
 	
-	} else {
-		
-		NumericMatrix B( nRow, nCol - n + 1 );
-		
-		for( int i=0; i < nRow; i++ ) {
-			
-			NumericVector tmp = A(i, _);
-			for( int ind=0; ind < nCol - n + 1; ind++ ) {
-				
-				B(i, ind) = roll_prod( tmp, weights, n, N, ind );
-			}
-		}
-		
-	return B;
+  NumericMatrix B( nRow - n + 1, nCol );
 	
+	for( int j=0; j < nCol; j++ ) {
+		
+		NumericMatrix::Column tmp = A(_, j);
+		for( int ind=0; ind < nRow - n + 1; ind++ ) {	
+			B(ind, j) = roll_prod( tmp, weights, n, N, ind );
+		}
 	}
-
+		
+	return B;
+	
 }

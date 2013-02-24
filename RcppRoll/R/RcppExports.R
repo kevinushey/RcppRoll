@@ -5,48 +5,48 @@ roll_mean_numeric_vector <- function(x, n, weights) {
     .Call('RcppRoll_roll_mean_numeric_vector', PACKAGE = 'RcppRoll', x, n, weights)
 }
 
-roll_mean_numeric_matrix <- function(A, n, by_column, weights) {
-    .Call('RcppRoll_roll_mean_numeric_matrix', PACKAGE = 'RcppRoll', A, n, by_column, weights)
+roll_mean_numeric_matrix <- function(A, n, weights) {
+    .Call('RcppRoll_roll_mean_numeric_matrix', PACKAGE = 'RcppRoll', A, n, weights)
 }
 
 roll_sum_numeric_vector <- function(x, n, weights) {
     .Call('RcppRoll_roll_sum_numeric_vector', PACKAGE = 'RcppRoll', x, n, weights)
 }
 
-roll_sum_numeric_matrix <- function(A, n, by_column, weights) {
-    .Call('RcppRoll_roll_sum_numeric_matrix', PACKAGE = 'RcppRoll', A, n, by_column, weights)
+roll_sum_numeric_matrix <- function(A, n, weights) {
+    .Call('RcppRoll_roll_sum_numeric_matrix', PACKAGE = 'RcppRoll', A, n, weights)
 }
 
 roll_var_numeric_vector <- function(x, n, weights) {
     .Call('RcppRoll_roll_var_numeric_vector', PACKAGE = 'RcppRoll', x, n, weights)
 }
 
-roll_var_numeric_matrix <- function(A, n, by_column, weights) {
-    .Call('RcppRoll_roll_var_numeric_matrix', PACKAGE = 'RcppRoll', A, n, by_column, weights)
+roll_var_numeric_matrix <- function(A, n, weights) {
+    .Call('RcppRoll_roll_var_numeric_matrix', PACKAGE = 'RcppRoll', A, n, weights)
 }
 
 roll_sd_numeric_vector <- function(x, n, weights) {
     .Call('RcppRoll_roll_sd_numeric_vector', PACKAGE = 'RcppRoll', x, n, weights)
 }
 
-roll_sd_numeric_matrix <- function(A, n, by_column, weights) {
-    .Call('RcppRoll_roll_sd_numeric_matrix', PACKAGE = 'RcppRoll', A, n, by_column, weights)
+roll_sd_numeric_matrix <- function(A, n, weights) {
+    .Call('RcppRoll_roll_sd_numeric_matrix', PACKAGE = 'RcppRoll', A, n, weights)
 }
 
 roll_max_numeric_vector <- function(x, n, weights) {
     .Call('RcppRoll_roll_max_numeric_vector', PACKAGE = 'RcppRoll', x, n, weights)
 }
 
-roll_max_numeric_matrix <- function(A, n, by_column, weights) {
-    .Call('RcppRoll_roll_max_numeric_matrix', PACKAGE = 'RcppRoll', A, n, by_column, weights)
+roll_max_numeric_matrix <- function(A, n, weights) {
+    .Call('RcppRoll_roll_max_numeric_matrix', PACKAGE = 'RcppRoll', A, n, weights)
 }
 
 roll_min_numeric_vector <- function(x, n, weights) {
     .Call('RcppRoll_roll_min_numeric_vector', PACKAGE = 'RcppRoll', x, n, weights)
 }
 
-roll_min_numeric_matrix <- function(A, n, by_column, weights) {
-    .Call('RcppRoll_roll_min_numeric_matrix', PACKAGE = 'RcppRoll', A, n, by_column, weights)
+roll_min_numeric_matrix <- function(A, n, weights) {
+    .Call('RcppRoll_roll_min_numeric_matrix', PACKAGE = 'RcppRoll', A, n, weights)
 }
 
 roll_median_numeric_vector <- function(x, n) {
@@ -61,7 +61,7 @@ roll_prod_numeric_vector <- function(x, n, weights) {
     .Call('RcppRoll_roll_prod_numeric_vector', PACKAGE = 'RcppRoll', x, n, weights)
 }
 
-roll_prod_numeric_matrix <- function(A, n, by_column, weights) {
-    .Call('RcppRoll_roll_prod_numeric_matrix', PACKAGE = 'RcppRoll', A, n, by_column, weights)
+roll_prod_numeric_matrix <- function(A, n, weights) {
+    .Call('RcppRoll_roll_prod_numeric_matrix', PACKAGE = 'RcppRoll', A, n, weights)
 }
 

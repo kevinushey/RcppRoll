@@ -1,6 +1,6 @@
 roll_R_file <- function( fun, includes, types, by ) {
   
-  R_types <- Kmisc::Replace(
+  R_types <- Kmisc::swap(
     types,
     c("NumericVector", "NumericMatrix", "CharacterVector", "CharacterMatrix"),
     c("numeric vector", "numeric matrix", "character vector", "character matrix")
@@ -61,18 +61,16 @@ roll_R_file <- function( fun, includes, types, by ) {
   if( "NumericMatrix" %in% types ) {
     w1("if( is.matrix(x) ) {")
     
-    ## bounds checking
-    w2("if( by.column && n > nrow(x) ) {")
-    w3("stop(\"n cannot be greater than nrow(x).\")")
-    w2("} else if( !by.column && n > ncol(x) ) {")
-    w3("stop(\"n cannot be greater than ncol(x).\")")
+    w2("if( by.column ) {")
+    w3("stopifnot( n <= nrow(x) )")
+    w3("return( .Call( \"RcppRoll_roll_", fun, "_numeric_matrix\", x, as.integer(n), as.numeric(weights), PACKAGE=\"RcppRoll\" ) )")
+    w2("} else {")
+    w3("stopifnot( n <= ncol(x) )")
+    w3("return( t( .Call( \"RcppRoll_roll_", fun, "_numeric_matrix\", t(x), as.integer(n), as.numeric(weights), PACKAGE=\"RcppRoll\" ) ) )")
     w2("}")
-    w2()
-    
-    w2("return( .Call( \"RcppRoll_roll_", fun, "_numeric_matrix\", x, as.integer(n), as.logical(by.column), as.numeric(weights), PACKAGE=\"RcppRoll\" ) )")
-    
     w1("}")
     w1("")
+    
   }
   
   ## Numeric Vector handler
@@ -92,7 +90,7 @@ roll_R_file <- function( fun, includes, types, by ) {
   }
   
   ## if we get here, nothing matched
-  w("stop(\"the x supplied is neither a vector or a matrix\")")
+  w1("stop(\"the x supplied is neither a vector or a matrix\")")
   w()
   w("}")
   w()

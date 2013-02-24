@@ -27,7 +27,7 @@ roll_Rcpp_file <- function( fun, includes, depends, types ) {
     
     ## write out the numeric vector handler
     w("// [[Rcpp::export]]")
-    w( "NumericVector roll_", fun, "_numeric_vector( NumericVector x, int n, NumericVector weights ) {" )
+    w( "NumericVector roll_", fun, "_numeric_vector( NumericVector x, int n, NumericVector weights, int by ) {" )
     w1()
     w1("int len = x.size();")
     w1("int len_out = len - n + 1;")

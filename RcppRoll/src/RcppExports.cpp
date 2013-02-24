@@ -19,15 +19,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_mean_numeric_matrix
-NumericMatrix roll_mean_numeric_matrix(NumericMatrix A, int n, bool by_column, NumericVector weights);
-RcppExport SEXP RcppRoll_roll_mean_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP, SEXP weightsSEXP) {
+NumericMatrix roll_mean_numeric_matrix(NumericMatrix A, int n, NumericVector weights);
+RcppExport SEXP RcppRoll_roll_mean_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    bool by_column = Rcpp::as<bool >(by_columnSEXP);
     NumericVector weights = Rcpp::as<NumericVector >(weightsSEXP);
-    NumericMatrix __result = roll_mean_numeric_matrix(A, n, by_column, weights);
+    NumericMatrix __result = roll_mean_numeric_matrix(A, n, weights);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -44,15 +43,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_sum_numeric_matrix
-NumericMatrix roll_sum_numeric_matrix(NumericMatrix A, int n, bool by_column, NumericVector weights);
-RcppExport SEXP RcppRoll_roll_sum_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP, SEXP weightsSEXP) {
+NumericMatrix roll_sum_numeric_matrix(NumericMatrix A, int n, NumericVector weights);
+RcppExport SEXP RcppRoll_roll_sum_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    bool by_column = Rcpp::as<bool >(by_columnSEXP);
     NumericVector weights = Rcpp::as<NumericVector >(weightsSEXP);
-    NumericMatrix __result = roll_sum_numeric_matrix(A, n, by_column, weights);
+    NumericMatrix __result = roll_sum_numeric_matrix(A, n, weights);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -69,15 +67,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_var_numeric_matrix
-NumericMatrix roll_var_numeric_matrix(NumericMatrix A, int n, bool by_column, NumericVector weights);
-RcppExport SEXP RcppRoll_roll_var_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP, SEXP weightsSEXP) {
+NumericMatrix roll_var_numeric_matrix(NumericMatrix A, int n, NumericVector weights);
+RcppExport SEXP RcppRoll_roll_var_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    bool by_column = Rcpp::as<bool >(by_columnSEXP);
     NumericVector weights = Rcpp::as<NumericVector >(weightsSEXP);
-    NumericMatrix __result = roll_var_numeric_matrix(A, n, by_column, weights);
+    NumericMatrix __result = roll_var_numeric_matrix(A, n, weights);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -94,15 +91,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_sd_numeric_matrix
-NumericMatrix roll_sd_numeric_matrix(NumericMatrix A, int n, bool by_column, NumericVector weights);
-RcppExport SEXP RcppRoll_roll_sd_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP, SEXP weightsSEXP) {
+NumericMatrix roll_sd_numeric_matrix(NumericMatrix A, int n, NumericVector weights);
+RcppExport SEXP RcppRoll_roll_sd_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    bool by_column = Rcpp::as<bool >(by_columnSEXP);
     NumericVector weights = Rcpp::as<NumericVector >(weightsSEXP);
-    NumericMatrix __result = roll_sd_numeric_matrix(A, n, by_column, weights);
+    NumericMatrix __result = roll_sd_numeric_matrix(A, n, weights);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -119,15 +115,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_max_numeric_matrix
-NumericMatrix roll_max_numeric_matrix(NumericMatrix A, int n, bool by_column, NumericVector weights);
-RcppExport SEXP RcppRoll_roll_max_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP, SEXP weightsSEXP) {
+NumericMatrix roll_max_numeric_matrix(NumericMatrix A, int n, NumericVector weights);
+RcppExport SEXP RcppRoll_roll_max_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    bool by_column = Rcpp::as<bool >(by_columnSEXP);
     NumericVector weights = Rcpp::as<NumericVector >(weightsSEXP);
-    NumericMatrix __result = roll_max_numeric_matrix(A, n, by_column, weights);
+    NumericMatrix __result = roll_max_numeric_matrix(A, n, weights);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -144,15 +139,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_min_numeric_matrix
-NumericMatrix roll_min_numeric_matrix(NumericMatrix A, int n, bool by_column, NumericVector weights);
-RcppExport SEXP RcppRoll_roll_min_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP, SEXP weightsSEXP) {
+NumericMatrix roll_min_numeric_matrix(NumericMatrix A, int n, NumericVector weights);
+RcppExport SEXP RcppRoll_roll_min_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    bool by_column = Rcpp::as<bool >(by_columnSEXP);
     NumericVector weights = Rcpp::as<NumericVector >(weightsSEXP);
-    NumericMatrix __result = roll_min_numeric_matrix(A, n, by_column, weights);
+    NumericMatrix __result = roll_min_numeric_matrix(A, n, weights);
     return Rcpp::wrap(__result);
 END_RCPP
 }
@@ -192,15 +186,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_prod_numeric_matrix
-NumericMatrix roll_prod_numeric_matrix(NumericMatrix A, int n, bool by_column, NumericVector weights);
-RcppExport SEXP RcppRoll_roll_prod_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP by_columnSEXP, SEXP weightsSEXP) {
+NumericMatrix roll_prod_numeric_matrix(NumericMatrix A, int n, NumericVector weights);
+RcppExport SEXP RcppRoll_roll_prod_numeric_matrix(SEXP ASEXP, SEXP nSEXP, SEXP weightsSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope __rngScope;
     NumericMatrix A = Rcpp::as<NumericMatrix >(ASEXP);
     int n = Rcpp::as<int >(nSEXP);
-    bool by_column = Rcpp::as<bool >(by_columnSEXP);
     NumericVector weights = Rcpp::as<NumericVector >(weightsSEXP);
-    NumericMatrix __result = roll_prod_numeric_matrix(A, n, by_column, weights);
+    NumericMatrix __result = roll_prod_numeric_matrix(A, n, weights);
     return Rcpp::wrap(__result);
 END_RCPP
 }
