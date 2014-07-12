@@ -7,7 +7,7 @@ for generating your own fast, C++ backed rollers.
 
 Install me with devtools:
 
-    install_github("RcppRoll", "cdrv", subdir="RcppRoll")
+    install_github("kevinushey/RcppRoll")
 
 and check some examples with
 

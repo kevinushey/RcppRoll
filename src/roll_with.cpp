@@ -280,6 +280,7 @@ microbenchmark(
   rollapply(x, weights, mean),
   roll_max(x, weights, NULL),
   roll_min(x, weights, NULL),
+  roll_median(x, weights, NULL),
   roll_prod(x, weights, NULL),
   roll_prod(x, weights, "left"),
   roll_prod(x, weights, "right"),
