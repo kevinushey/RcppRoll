@@ -218,3 +218,101 @@ struct median_f {
 };
 
 } // end namespace RcppRoll
+// Begin auto-generated exports (internal/make_exports.R)
+
+// [[Rcpp::export]]
+SEXP roll_mean(SEXP x, NumericVector weights, SEXP pad, bool by_column, bool normalize) {
+  if (normalize)
+    weights = weights / sum(weights);
+  if (Rf_isMatrix(x)) { 
+    return RcppRoll::roll_matrix_with(RcppRoll::mean_f(), NumericMatrix(x), weights, pad); 
+  } else { 
+    return RcppRoll::roll_vector_with(RcppRoll::mean_f(), NumericVector(x), weights, pad); 
+  }
+}
+
+
+// [[Rcpp::export]]
+SEXP roll_median(SEXP x, NumericVector weights, SEXP pad, bool by_column, bool normalize) {
+  if (normalize)
+    weights = weights / sum(weights);
+  if (Rf_isMatrix(x)) { 
+    return RcppRoll::roll_matrix_with(RcppRoll::median_f(), NumericMatrix(x), weights, pad); 
+  } else { 
+    return RcppRoll::roll_vector_with(RcppRoll::median_f(), NumericVector(x), weights, pad); 
+  }
+}
+
+
+// [[Rcpp::export]]
+SEXP roll_min(SEXP x, NumericVector weights, SEXP pad, bool by_column, bool normalize) {
+  if (normalize)
+    weights = weights / sum(weights);
+  if (Rf_isMatrix(x)) { 
+    return RcppRoll::roll_matrix_with(RcppRoll::min_f(), NumericMatrix(x), weights, pad); 
+  } else { 
+    return RcppRoll::roll_vector_with(RcppRoll::min_f(), NumericVector(x), weights, pad); 
+  }
+}
+
+
+// [[Rcpp::export]]
+SEXP roll_max(SEXP x, NumericVector weights, SEXP pad, bool by_column, bool normalize) {
+  if (normalize)
+    weights = weights / sum(weights);
+  if (Rf_isMatrix(x)) { 
+    return RcppRoll::roll_matrix_with(RcppRoll::max_f(), NumericMatrix(x), weights, pad); 
+  } else { 
+    return RcppRoll::roll_vector_with(RcppRoll::max_f(), NumericVector(x), weights, pad); 
+  }
+}
+
+
+// [[Rcpp::export]]
+SEXP roll_prod(SEXP x, NumericVector weights, SEXP pad, bool by_column, bool normalize) {
+  if (normalize)
+    weights = weights / sum(weights);
+  if (Rf_isMatrix(x)) { 
+    return RcppRoll::roll_matrix_with(RcppRoll::prod_f(), NumericMatrix(x), weights, pad); 
+  } else { 
+    return RcppRoll::roll_vector_with(RcppRoll::prod_f(), NumericVector(x), weights, pad); 
+  }
+}
+
+
+// [[Rcpp::export]]
+SEXP roll_sum(SEXP x, NumericVector weights, SEXP pad, bool by_column, bool normalize) {
+  if (normalize)
+    weights = weights / sum(weights);
+  if (Rf_isMatrix(x)) { 
+    return RcppRoll::roll_matrix_with(RcppRoll::sum_f(), NumericMatrix(x), weights, pad); 
+  } else { 
+    return RcppRoll::roll_vector_with(RcppRoll::sum_f(), NumericVector(x), weights, pad); 
+  }
+}
+
+
+// [[Rcpp::export]]
+SEXP roll_sd(SEXP x, NumericVector weights, SEXP pad, bool by_column, bool normalize) {
+  if (normalize)
+    weights = weights / sum(weights);
+  if (Rf_isMatrix(x)) { 
+    return RcppRoll::roll_matrix_with(RcppRoll::sd_f(), NumericMatrix(x), weights, pad); 
+  } else { 
+    return RcppRoll::roll_vector_with(RcppRoll::sd_f(), NumericVector(x), weights, pad); 
+  }
+}
+
+
+// [[Rcpp::export]]
+SEXP roll_var(SEXP x, NumericVector weights, SEXP pad, bool by_column, bool normalize) {
+  if (normalize)
+    weights = weights / sum(weights);
+  if (Rf_isMatrix(x)) { 
+    return RcppRoll::roll_matrix_with(RcppRoll::var_f(), NumericMatrix(x), weights, pad); 
+  } else { 
+    return RcppRoll::roll_vector_with(RcppRoll::var_f(), NumericVector(x), weights, pad); 
+  }
+}
+
+// End auto-generated exports (internal/make_exports.R)
