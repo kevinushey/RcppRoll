@@ -12,7 +12,7 @@ using namespace Rcpp;
 
 generator <- trimLeft("
 // [[Rcpp::export(.RcppRoll_%s)]]
-SEXP roll_%s(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normalize) {
+SEXP roll_%s(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
 
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
@@ -60,8 +60,14 @@ header <- trimLeft("
 wrapper <- trimLeft("
 ##' @rdname RcppRoll
 ##' @export
-roll_%s <- function(x, n, weights = rep(1,n), pad = NULL, by.column = TRUE, normalize = FALSE) {
-  return(.RcppRoll_%s(x, weights, pad, by.column, normalize))
+roll_%s <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+  return(.RcppRoll_%s(
+    x,
+    as.integer(n),
+    weights,
+    pad,
+    as.logical(normalize)
+  ))
 }
 ")
 
@@ -70,4 +76,3 @@ wrappers <- unlist(lapply(functions, function(x) {
 }))
 
 cat(c(header, wrappers), file = "R/rollit_generated.R", sep = "\n")
-

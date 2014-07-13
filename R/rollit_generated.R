@@ -2,49 +2,97 @@
 
 ##' @rdname RcppRoll
 ##' @export
-roll_mean <- function(x, n, weights = rep(1,n), pad = NULL, by.column = TRUE, normalize = FALSE) {
-  return(.RcppRoll_mean(x, weights, pad, by.column, normalize))
+roll_mean <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+  return(.RcppRoll_mean(
+    x,
+    as.integer(n),
+    weights,
+    pad,
+    as.logical(normalize)
+  ))
 }
 
 ##' @rdname RcppRoll
 ##' @export
-roll_median <- function(x, n, weights = rep(1,n), pad = NULL, by.column = TRUE, normalize = FALSE) {
-  return(.RcppRoll_median(x, weights, pad, by.column, normalize))
+roll_median <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+  return(.RcppRoll_median(
+    x,
+    as.integer(n),
+    weights,
+    pad,
+    as.logical(normalize)
+  ))
 }
 
 ##' @rdname RcppRoll
 ##' @export
-roll_min <- function(x, n, weights = rep(1,n), pad = NULL, by.column = TRUE, normalize = FALSE) {
-  return(.RcppRoll_min(x, weights, pad, by.column, normalize))
+roll_min <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+  return(.RcppRoll_min(
+    x,
+    as.integer(n),
+    weights,
+    pad,
+    as.logical(normalize)
+  ))
 }
 
 ##' @rdname RcppRoll
 ##' @export
-roll_max <- function(x, n, weights = rep(1,n), pad = NULL, by.column = TRUE, normalize = FALSE) {
-  return(.RcppRoll_max(x, weights, pad, by.column, normalize))
+roll_max <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+  return(.RcppRoll_max(
+    x,
+    as.integer(n),
+    weights,
+    pad,
+    as.logical(normalize)
+  ))
 }
 
 ##' @rdname RcppRoll
 ##' @export
-roll_prod <- function(x, n, weights = rep(1,n), pad = NULL, by.column = TRUE, normalize = FALSE) {
-  return(.RcppRoll_prod(x, weights, pad, by.column, normalize))
+roll_prod <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+  return(.RcppRoll_prod(
+    x,
+    as.integer(n),
+    weights,
+    pad,
+    as.logical(normalize)
+  ))
 }
 
 ##' @rdname RcppRoll
 ##' @export
-roll_sum <- function(x, n, weights = rep(1,n), pad = NULL, by.column = TRUE, normalize = FALSE) {
-  return(.RcppRoll_sum(x, weights, pad, by.column, normalize))
+roll_sum <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+  return(.RcppRoll_sum(
+    x,
+    as.integer(n),
+    weights,
+    pad,
+    as.logical(normalize)
+  ))
 }
 
 ##' @rdname RcppRoll
 ##' @export
-roll_sd <- function(x, n, weights = rep(1,n), pad = NULL, by.column = TRUE, normalize = FALSE) {
-  return(.RcppRoll_sd(x, weights, pad, by.column, normalize))
+roll_sd <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+  return(.RcppRoll_sd(
+    x,
+    as.integer(n),
+    weights,
+    pad,
+    as.logical(normalize)
+  ))
 }
 
 ##' @rdname RcppRoll
 ##' @export
-roll_var <- function(x, n, weights = rep(1,n), pad = NULL, by.column = TRUE, normalize = FALSE) {
-  return(.RcppRoll_var(x, weights, pad, by.column, normalize))
+roll_var <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+  return(.RcppRoll_var(
+    x,
+    as.integer(n),
+    weights,
+    pad,
+    as.logical(normalize)
+  ))
 }
 

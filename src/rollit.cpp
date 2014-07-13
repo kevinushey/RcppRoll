@@ -162,7 +162,7 @@ T roll_matrix_with(Callable f,
 
   for (int i = 0; i < ncol; ++i) {
     output(_, i) = roll_vector_with(
-        f, static_cast<NumericVector>(x(_, i)), weights, n, pad, normalize);
+      f, static_cast<NumericVector>(x(_, i)), weights, n, pad, normalize);
   }
 
   return output;
@@ -298,19 +298,19 @@ struct median_f {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
 
-    int x_n = x.size();
+    std::vector<double> copied(n / 2 + 1);
 
-    // if 'x' has even length, we want the two middle elements
-    int x_n_half = (x_n + 1) / 2;
+    std::partial_sort_copy(
+      x.begin() + offset,
+      x.begin() + offset + n,
+      copied.begin(),
+      copied.begin() + n / 2 + 1
+    );
 
-    std::vector<double> copied;
-    copied.reserve(x_n_half);
-
-    std::partial_sort_copy(x.begin(), x.end(), copied.begin(), copied.begin() + x_n_half + 1);
     if (n % 2 == 0) {
-      return (copied[x_n_half - 1] + copied[x_n_half]) / 2;
+      return (copied[n / 2 - 1] + copied[n / 2]) / 2;
     } else {
-      return copied[x_n_half];
+      return copied[n / 2];
     }
 
   }
@@ -320,7 +320,7 @@ struct median_f {
                            NumericVector const& weights,
                            int n) {
 
-    NumericVector copy = clone(x);
+    NumericVector copy(x.begin() + offset, x.begin() + offset + n);
     std::sort(copy.begin(), copy.end());
 
     double weights_sum = sum(weights);
@@ -333,17 +333,46 @@ struct median_f {
       sum -= weights[k];
     }
 
-    return x[k];
+    return copy[k];
+  }
+
+};
+
+struct var_f {
+
+  inline double operator()(NumericVector const& x, int offset, int n) {
+    return var(NumericVector(x.begin() + offset, x.begin() + offset + n));
+  }
+
+  inline double operator()(NumericVector const& x, int offset, NumericVector weights, int n) {
+    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
+    return var(sub * weights);
+  }
+
+};
+
+struct sd_f {
+
+  inline double operator()(NumericVector const& x, int offset, int n) {
+    return sqrt(var(NumericVector(x.begin() + offset, x.begin() + offset + n)));
+  }
+
+  inline double operator()(NumericVector const& x, int offset, NumericVector weights, int n) {
+    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
+    return sqrt(var(sub * weights));
   }
 
 };
 
 }  // end namespace RcppRoll
 
+
+
+
 // Begin auto-generated exports (internal/make_exports.R)
 
 // [[Rcpp::export(.RcppRoll_mean)]]
-SEXP roll_mean(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normalize) {
+SEXP roll_mean(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
 
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
@@ -356,7 +385,7 @@ SEXP roll_mean(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool norma
 }
 
 // [[Rcpp::export(.RcppRoll_median)]]
-SEXP roll_median(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normalize) {
+SEXP roll_median(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
 
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
@@ -369,7 +398,7 @@ SEXP roll_median(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool nor
 }
 
 // [[Rcpp::export(.RcppRoll_min)]]
-SEXP roll_min(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normalize) {
+SEXP roll_min(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
 
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
@@ -382,7 +411,7 @@ SEXP roll_min(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normal
 }
 
 // [[Rcpp::export(.RcppRoll_max)]]
-SEXP roll_max(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normalize) {
+SEXP roll_max(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
 
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
@@ -395,7 +424,7 @@ SEXP roll_max(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normal
 }
 
 // [[Rcpp::export(.RcppRoll_prod)]]
-SEXP roll_prod(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normalize) {
+SEXP roll_prod(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
 
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
@@ -408,7 +437,7 @@ SEXP roll_prod(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool norma
 }
 
 // [[Rcpp::export(.RcppRoll_sum)]]
-SEXP roll_sum(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normalize) {
+SEXP roll_sum(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
 
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
@@ -416,6 +445,32 @@ SEXP roll_sum(SEXP x, int n, SEXP weights, SEXP pad, bool by_column, bool normal
   } else {
     return RcppRoll::roll_vector_with(
         RcppRoll::sum_f(), NumericVector(x), weights, n, pad, normalize);
+  }
+
+}
+
+// [[Rcpp::export(.RcppRoll_sd)]]
+SEXP roll_sd(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+
+  if (Rf_isMatrix(x)) {
+    return RcppRoll::roll_matrix_with(
+        RcppRoll::sd_f(), NumericMatrix(x), weights, n, pad, normalize);
+  } else {
+    return RcppRoll::roll_vector_with(
+        RcppRoll::sd_f(), NumericVector(x), weights, n, pad, normalize);
+  }
+
+}
+
+// [[Rcpp::export(.RcppRoll_var)]]
+SEXP roll_var(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+
+  if (Rf_isMatrix(x)) {
+    return RcppRoll::roll_matrix_with(
+        RcppRoll::var_f(), NumericMatrix(x), weights, n, pad, normalize);
+  } else {
+    return RcppRoll::roll_vector_with(
+        RcppRoll::var_f(), NumericVector(x), weights, n, pad, normalize);
   }
 
 }
