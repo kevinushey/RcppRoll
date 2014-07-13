@@ -1,8 +1,9 @@
 library("microbenchmark")
 library("RcppRoll")
+library("Rcpp")
 library("zoo")
 
-x <- rnorm(1E6)
+x <- rnorm(1E5)
 y <- matrix( rnorm(1E6), ncol=1E3 )
 
 rolling_mean <- rollit(final_trans="x/N")
@@ -19,8 +20,8 @@ microbenchmark(
   roll_median(x, 10),
   zoo::rollmean(x, 10),
   zoo::rollapply(x, 10, mean),
-  times=10
-  )
+  times=5
+)
 
 close_enough( c(roll_mean(y, 10)), c(zoo::rollmean(y, 10)) )
 

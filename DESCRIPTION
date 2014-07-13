@@ -16,18 +16,3 @@ Suggests:
     zoo,
     microbenchmark
 LinkingTo: Rcpp (>= 0.11.2)
-Collate:
-    'package_description.R'
-    'RcppExports.R'
-    'roll_mean.R'
-    'roll_sum.R'
-    'roll_var.R'
-    'roll_sd.R'
-    'roll_prod.R'
-    'roll_median.R'
-    'roll_max.R'
-    'roll_min.R'
-    'get_rollit_source.R'
-    'rollit_example.R'
-    'rollit_raw.R'
-    'rollit.R'
