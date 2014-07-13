@@ -232,7 +232,7 @@ struct min_f {
                            int n) {
     double result = R_PosInf;
     for (int i = 0; i < n; ++i) {
-      result = x[i] < result ? x[i] : result;
+      result = x[offset + i] < result ? x[offset + i] : result;
     }
     return result;
   }
@@ -258,7 +258,7 @@ struct max_f {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      result = x[i] < result ? result : x[i];
+      result = x[offset + i] < result ? result : x[offset + i];
     }
     return result;
   }
