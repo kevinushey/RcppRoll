@@ -16,4 +16,6 @@ Suggests:
     zoo,
     microbenchmark,
     testthat
-LinkingTo: Rcpp (>= 0.11.2)
+Imports:
+    Rcpp
+LinkingTo: Rcpp

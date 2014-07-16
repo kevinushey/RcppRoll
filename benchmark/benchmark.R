@@ -3,7 +3,7 @@ library("RcppRoll")
 library("Rcpp")
 library("zoo")
 
-x <- rnorm(1E3)
+x <- rnorm(1E5)
 y <- matrix( rnorm(1E6), ncol=1E3 )
 
 rolling_mean <- rollit(final_trans="x/N")

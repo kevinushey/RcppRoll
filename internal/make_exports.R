@@ -12,14 +12,15 @@ using namespace Rcpp;
 
 generator <- trimLeft("
 // [[Rcpp::export(.RcppRoll_%s)]]
-SEXP roll_%s(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+SEXP roll_%s(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
 
+  RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::%s_f(), NumericMatrix(x), weights, n, pad, normalize);
+        RcppRoll::%s_f(), NumericMatrix(x), n, weights, fill, partial, align);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::%s_f(), NumericVector(x), weights, n, pad, normalize);
+        RcppRoll::%s_f(), NumericVector(x), n, weights, fill, partial, align);
   }
 
 }
@@ -60,13 +61,15 @@ header <- trimLeft("
 wrapper <- trimLeft("
 ##' @rdname RcppRoll
 ##' @export
-roll_%s <- function(x, n, weights = NULL, pad = NULL, normalize = FALSE) {
+roll_%s <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+                    align = c(\"center\", \"left\", \"right\")) {
   return(.RcppRoll_%s(
     x,
     as.integer(n),
     weights,
-    pad,
-    as.logical(normalize)
+    as.numeric(fill),
+    as.logical(partial),
+    as.character(match.arg(align))
   ))
 }
 ")

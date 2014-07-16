@@ -13,37 +13,53 @@
 \alias{roll_var}
 \title{RcppRoll}
 \usage{
-roll_mean(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_mean(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_median(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_median(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_min(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_min(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_max(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_max(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_prod(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_prod(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_sum(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_sum(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_sd(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_sd(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_var(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_var(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_mean(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_mean(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_median(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_median(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_min(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_min(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_max(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_max(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_prod(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_prod(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_sum(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_sum(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_sd(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_sd(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 
-roll_var(x, n, weights = NULL, pad = NULL, normalize = FALSE)
+roll_var(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"))
 }
 \description{
 This package implements a number of 'roll'-ing functions for \R

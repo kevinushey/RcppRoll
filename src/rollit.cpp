@@ -1,7 +1,52 @@
+#define DEBUG(x) x
+
 #include <Rcpp.h>
 using namespace Rcpp;
 
 namespace RcppRoll {
+
+class Fill {
+
+public:
+
+Fill (NumericVector const& vector) {
+  switch (Rf_length(vector)) {
+    case 0: {
+      filled_ = false;
+      break;
+    }
+    case 1: {
+      left_ = middle_ = right_ = vector[0];
+      filled_ = true;
+      break;
+    }
+    case 3: {
+      left_ = vector[0];
+      middle_ = vector[1];
+      right_ = vector[2];
+      filled_ = true;
+      break;
+    }
+  }
+}
+
+Fill (Fill const& other):
+  left_(other.left_), middle_(other.middle_), right_(other.right_),
+  filled_(other.filled_) {}
+
+inline double left() const { return left_; }
+inline double middle() const { return middle_; }
+inline double right() const { return right_; }
+inline bool filled() const { return filled_; }
+
+private:
+
+  double left_;
+  double middle_;
+  double right_;
+  bool filled_;
+
+};
 
 template <typename T>
 struct product {
@@ -13,135 +58,117 @@ inline double prod(T const& x) {
   return std::accumulate(x.begin(), x.end(), 1.0, product<double>());
 }
 
+inline int getLeftPadding(Fill const& fill, String const& align, int n) {
+  if (!fill.filled()) return 0;
+  if (align == "left") {
+    return 0;
+  } else if (align == "center") {
+    return (n - 1) / 2; // round down
+  } else if (align == "right") {
+    return n - 1;
+  } else {
+    stop("Invalid 'align'");
+  }
+  return -1; // silence compiler
+}
+
+inline int getRightPadding(Fill const& fill, String const& align, int n) {
+  if (!fill.filled()) return 0;
+  if (align == "left") {
+    return n - 1;
+  } else if (align == "center") {
+    return n / 2;
+  } else if (align == "right") {
+    return 0;
+  } else {
+    stop("Invalid 'align'");
+  }
+  return -1; // silence compiler
+}
+
 template <typename Callable, typename T>
 T roll_vector_with(Callable f,
                    T const& x,
-                   SEXP weights,
                    int n,
-                   SEXP pad,
-                   bool normalize) {
+                   SEXP weights,
+                   Fill const& fill,
+                   bool partial,
+                   String const& align) {
 
-#define DISPATCH(__X__)                           \
-  if (Rf_isNull(weights)) {                       \
-    return __X__(f, x, n);                        \
-  } else {                                        \
-    if (normalize) {                              \
-      NumericVector w(weights);                   \
-      return __X__(f, x, w / sum(w), n);             \
-    } else {                                      \
-      return __X__(f, x, NumericVector(weights), n); \
-    }                                             \
+  return fill.filled() ?
+    roll_vector_with_fill(f, x, n, weights, fill, partial, align) :
+    roll_vector_with_nofill(f, x, n, weights, fill, partial, align)
+  ;
+
+}
+
+template <typename Callable, typename T>
+T roll_vector_with_fill(Callable f,
+                   T const& x,
+                   int n,
+                   SEXP weights,
+                   Fill const& fill,
+                   bool partial,
+                   String const& align) {
+
+  // figure out if we need to pad at the start, end, etc.
+  int padLeftTimes  = getLeftPadding(fill, align, n);
+  int padRightTimes = getRightPadding(fill, align, n);
+
+  int x_n = x.size();
+  int ops_n = x_n - n + 1;
+  int output_n = padLeftTimes + ops_n + padRightTimes;
+
+  T result = no_init(output_n);
+
+  // pad left
+  for (int i = 0; i < padLeftTimes; ++i) {
+    result[i] = fill.left();
   }
 
-  if (Rf_isNull(pad)) {
-    DISPATCH(roll_vector_with_nopad);
-  } else if (strcmp(CHAR(STRING_ELT(pad, 0)), "left") == 0) {
-    DISPATCH(roll_vector_with_pad_left);
-  } else if (strcmp(CHAR(STRING_ELT(pad, 0)), "right") == 0) {
-    DISPATCH(roll_vector_with_pad_right);
+  // fill result
+  if (Rf_isNull(weights)) {
+    for (int i = padLeftTimes; i < padLeftTimes + ops_n; ++i) {
+      result[i] = f(x, i - padLeftTimes, n);
+    }
   } else {
-    DISPATCH(roll_vector_with_nopad);
+    for (int i = padLeftTimes; i < padLeftTimes + ops_n; ++i) {
+      result[i] = f(x, i - padLeftTimes, weights, n);
+    }
   }
 
-#undef DISPATCH
-}
-
-// no padding + weights
-template <typename Callable, typename T>
-T roll_vector_with_nopad(Callable f, T const& x, NumericVector const& weights, int weights_n) {
-
-  int x_n = x.size();
-  int n_ops = x_n - weights_n + 1;
-
-  T result = no_init(n_ops);
-  for (int i = 0; i < n_ops; ++i) {
-    result[i] = f(x, i, weights, weights_n);
+  // pad right
+  for (int i = padLeftTimes + ops_n; i < padLeftTimes + ops_n + padRightTimes; ++i) {
+    result[i] = fill.right();
   }
 
   return result;
 }
 
-// no padding + unit weights
 template <typename Callable, typename T>
-T roll_vector_with_nopad(Callable f, T const& x, int n) {
+T roll_vector_with_nofill(Callable f,
+                   T const& x,
+                   int n,
+                   SEXP weights,
+                   Fill const& fill,
+                   bool partial,
+                   String const& align) {
 
   int x_n = x.size();
-  int n_ops = x_n - n + 1;
+  int ops_n = x_n - n + 1;
+  int output_n = ops_n;
 
-  T result = no_init(n_ops);
-  for (int i = 0; i < n_ops; ++i) {
-    result[i] = f(x, i, n);
-  }
+  T result = no_init(output_n);
 
-  return result;
-}
-
-// pad left + weights
-template <typename Callable, typename T>
-T roll_vector_with_pad_left(Callable f, T const& x, NumericVector weights, int weights_n) {
-
-  int x_n = x.size();
-  int n_ops = x_n - weights_n + 1;
-
-  T result = no_init(x_n);
-  for (int i = 0; i < weights_n - 1; ++i) {
-    result[i] = T::get_na();
-  }
-  for (int i = 0; i < n_ops; ++i) {
-    result[i + weights_n - 1] = f(x, i, weights, weights_n);
-  }
-
-  return result;
-}
-
-// pad left, unit weights
-template <typename Callable, typename T>
-T roll_vector_with_pad_left(Callable f, T const& x, int n) {
-
-  int x_n = x.size();
-  int n_ops = x_n - n + 1;
-
-  T result = no_init(x_n);
-  for (int i = 0; i < n - 1; ++i) {
-    result[i] = T::get_na();
-  }
-  for (int i = 0; i < n_ops; ++i) {
-    result[i + n - 1] = f(x, i, n);
-  }
-
-  return result;
-}
-
-// pad right + weights
-template <typename Callable, typename T>
-T roll_vector_with_pad_right(Callable f, T const& x, NumericVector weights, int weights_n) {
-
-  int x_n = x.size();
-
-  T result = no_init(x_n);
-  for (int i = 0; i < x_n - weights_n + 1; ++i) {
-    result[i] = f(x, i, weights, weights_n);
-  }
-  for (int i = x_n - weights_n + 1; i < x_n; ++i) {
-    result[i] = T::get_na();
-  }
-
-  return result;
-}
-
-// pad right + unit weights
-template <typename Callable, typename T>
-T roll_vector_with_pad_right(Callable f, T const& x, int n) {
-
-  int x_n = x.size();
-
-  T result = no_init(x_n);
-
-  for (int i = 0; i < x_n - n + 1; ++i) {
-    result[i] = f(x, i, n);
-  }
-  for (int i = x_n - n + 1; i < x_n; ++i) {
-    result[i] = T::get_na();
+  // fill result
+  if (Rf_isNull(weights)) {
+    for (int i = 0; i < ops_n; ++i) {
+      result[i] = f(x, i, n);
+    }
+  } else {
+    for (int i = 0; i < ops_n; ++i) {
+      result[i] = f(x, i, weights, n);
+    }
   }
 
   return result;
@@ -150,10 +177,11 @@ T roll_vector_with_pad_right(Callable f, T const& x, int n) {
 template <typename Callable, typename T>
 T roll_matrix_with(Callable f,
                    T const& x,
-                   SEXP weights,
                    int n,
-                   SEXP pad,
-                   bool normalize) {
+                   SEXP weights,
+                   Fill const& fill,
+                   bool partial,
+                   String const& align) {
 
   int nrow = x.nrow();
   int ncol = x.ncol();
@@ -162,7 +190,7 @@ T roll_matrix_with(Callable f,
 
   for (int i = 0; i < ncol; ++i) {
     output(_, i) = roll_vector_with(
-      f, static_cast<NumericVector>(x(_, i)), weights, n, pad, normalize);
+      f, static_cast<NumericVector>(x(_, i)), n, weights, fill, partial, align);
   }
 
   return output;
@@ -372,105 +400,113 @@ struct sd_f {
 // Begin auto-generated exports (internal/make_exports.R)
 
 // [[Rcpp::export(.RcppRoll_mean)]]
-SEXP roll_mean(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+SEXP roll_mean(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
 
+  RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::mean_f(), NumericMatrix(x), weights, n, pad, normalize);
+        RcppRoll::mean_f(), NumericMatrix(x), n, weights, fill, partial, align);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::mean_f(), NumericVector(x), weights, n, pad, normalize);
+        RcppRoll::mean_f(), NumericVector(x), n, weights, fill, partial, align);
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_median)]]
-SEXP roll_median(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+SEXP roll_median(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
 
+  RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::median_f(), NumericMatrix(x), weights, n, pad, normalize);
+        RcppRoll::median_f(), NumericMatrix(x), n, weights, fill, partial, align);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::median_f(), NumericVector(x), weights, n, pad, normalize);
+        RcppRoll::median_f(), NumericVector(x), n, weights, fill, partial, align);
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_min)]]
-SEXP roll_min(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+SEXP roll_min(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
 
+  RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::min_f(), NumericMatrix(x), weights, n, pad, normalize);
+        RcppRoll::min_f(), NumericMatrix(x), n, weights, fill, partial, align);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::min_f(), NumericVector(x), weights, n, pad, normalize);
+        RcppRoll::min_f(), NumericVector(x), n, weights, fill, partial, align);
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_max)]]
-SEXP roll_max(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+SEXP roll_max(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
 
+  RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::max_f(), NumericMatrix(x), weights, n, pad, normalize);
+        RcppRoll::max_f(), NumericMatrix(x), n, weights, fill, partial, align);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::max_f(), NumericVector(x), weights, n, pad, normalize);
+        RcppRoll::max_f(), NumericVector(x), n, weights, fill, partial, align);
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_prod)]]
-SEXP roll_prod(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+SEXP roll_prod(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
 
+  RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::prod_f(), NumericMatrix(x), weights, n, pad, normalize);
+        RcppRoll::prod_f(), NumericMatrix(x), n, weights, fill, partial, align);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::prod_f(), NumericVector(x), weights, n, pad, normalize);
+        RcppRoll::prod_f(), NumericVector(x), n, weights, fill, partial, align);
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_sum)]]
-SEXP roll_sum(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+SEXP roll_sum(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
 
+  RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::sum_f(), NumericMatrix(x), weights, n, pad, normalize);
+        RcppRoll::sum_f(), NumericMatrix(x), n, weights, fill, partial, align);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::sum_f(), NumericVector(x), weights, n, pad, normalize);
+        RcppRoll::sum_f(), NumericVector(x), n, weights, fill, partial, align);
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_sd)]]
-SEXP roll_sd(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+SEXP roll_sd(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
 
+  RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::sd_f(), NumericMatrix(x), weights, n, pad, normalize);
+        RcppRoll::sd_f(), NumericMatrix(x), n, weights, fill, partial, align);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::sd_f(), NumericVector(x), weights, n, pad, normalize);
+        RcppRoll::sd_f(), NumericVector(x), n, weights, fill, partial, align);
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_var)]]
-SEXP roll_var(SEXP x, int n, SEXP weights, SEXP pad, bool normalize) {
+SEXP roll_var(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
 
+  RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::var_f(), NumericMatrix(x), weights, n, pad, normalize);
+        RcppRoll::var_f(), NumericMatrix(x), n, weights, fill, partial, align);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::var_f(), NumericVector(x), weights, n, pad, normalize);
+        RcppRoll::var_f(), NumericVector(x), n, weights, fill, partial, align);
   }
 
 }
