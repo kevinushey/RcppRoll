@@ -397,6 +397,16 @@ struct sd_f {
 
 
 
+
+
+
+
+
+
+
+
+
+
 // Begin auto-generated exports (internal/make_exports.R)
 
 // [[Rcpp::export(.RcppRoll_mean)]]
