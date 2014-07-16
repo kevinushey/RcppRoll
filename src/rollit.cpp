@@ -295,7 +295,7 @@ struct max_f {
 struct prod_f {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
-    double result = 0.0;
+    double result = 1.0;
     for (int i = 0; i < n; ++i) {
       result *= x[offset + i];
     }
@@ -306,7 +306,7 @@ struct prod_f {
                            int offset,
                            NumericVector const& weights,
                            int n) {
-    double result = 0.0;
+    double result = 1.0;
     for (int i = 0; i < n; ++i) {
       result *= x[offset + i] * weights[i];
     }
