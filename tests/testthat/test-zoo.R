@@ -6,7 +6,7 @@ test_that("we behave similarly to zoo::rollapply", {
   window <- 5L
 
   run_tests <- function(data, width, ...) {
-    functions <- c("mean", "median", "min", "max", "sum")
+    functions <- c("mean", "median", "prod", "min", "max", "sum")
     for (f in functions) {
       RcppRoll <- get(paste("roll", f, sep = "_"), envir = asNamespace("RcppRoll"))
       expect_equal(RcppRoll(data, width, ...), zoo::rollapply(data, width, FUN = get(f), ...))
