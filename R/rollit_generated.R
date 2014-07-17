@@ -18,337 +18,393 @@ NULL
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_mean <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-                    align = c("center", "left", "right")) {
+roll_mean <- function(x, n, weights = NULL, by = 1L,
+  fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"), normalize = TRUE) {
   return(.RcppRoll_mean(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_meanr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "right") {
+roll_meanr <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "right", normalize = TRUE) {
   return(.RcppRoll_mean(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_meanl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "left") {
+roll_meanl <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "left", normalize = TRUE) {
   return(.RcppRoll_mean(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_median <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-                    align = c("center", "left", "right")) {
+roll_median <- function(x, n, weights = NULL, by = 1L,
+  fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"), normalize = TRUE) {
   return(.RcppRoll_median(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_medianr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "right") {
+roll_medianr <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "right", normalize = TRUE) {
   return(.RcppRoll_median(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_medianl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "left") {
+roll_medianl <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "left", normalize = TRUE) {
   return(.RcppRoll_median(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_min <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-                    align = c("center", "left", "right")) {
+roll_min <- function(x, n, weights = NULL, by = 1L,
+  fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"), normalize = TRUE) {
   return(.RcppRoll_min(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_minr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "right") {
+roll_minr <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "right", normalize = TRUE) {
   return(.RcppRoll_min(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_minl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "left") {
+roll_minl <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "left", normalize = TRUE) {
   return(.RcppRoll_min(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_max <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-                    align = c("center", "left", "right")) {
+roll_max <- function(x, n, weights = NULL, by = 1L,
+  fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"), normalize = TRUE) {
   return(.RcppRoll_max(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_maxr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "right") {
+roll_maxr <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "right", normalize = TRUE) {
   return(.RcppRoll_max(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_maxl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "left") {
+roll_maxl <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "left", normalize = TRUE) {
   return(.RcppRoll_max(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_prod <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-                    align = c("center", "left", "right")) {
+roll_prod <- function(x, n, weights = NULL, by = 1L,
+  fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"), normalize = TRUE) {
   return(.RcppRoll_prod(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_prodr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "right") {
+roll_prodr <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "right", normalize = TRUE) {
   return(.RcppRoll_prod(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_prodl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "left") {
+roll_prodl <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "left", normalize = TRUE) {
   return(.RcppRoll_prod(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_sum <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-                    align = c("center", "left", "right")) {
+roll_sum <- function(x, n, weights = NULL, by = 1L,
+  fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"), normalize = TRUE) {
   return(.RcppRoll_sum(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_sumr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "right") {
+roll_sumr <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "right", normalize = TRUE) {
   return(.RcppRoll_sum(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_suml <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "left") {
+roll_suml <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "left", normalize = TRUE) {
   return(.RcppRoll_sum(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_sd <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-                    align = c("center", "left", "right")) {
+roll_sd <- function(x, n, weights = NULL, by = 1L,
+  fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"), normalize = TRUE) {
   return(.RcppRoll_sd(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_sdr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "right") {
+roll_sdr <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "right", normalize = TRUE) {
   return(.RcppRoll_sd(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_sdl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "left") {
+roll_sdl <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "left", normalize = TRUE) {
   return(.RcppRoll_sd(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_var <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-                    align = c("center", "left", "right")) {
+roll_var <- function(x, n, weights = NULL, by = 1L,
+  fill = numeric(0), partial = FALSE,
+  align = c("center", "left", "right"), normalize = TRUE) {
   return(.RcppRoll_var(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_varr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "right") {
+roll_varr <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "right", normalize = TRUE) {
   return(.RcppRoll_var(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_varl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = "left") {
+roll_varl <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = "left", normalize = TRUE) {
   return(.RcppRoll_var(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 

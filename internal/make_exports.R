@@ -12,15 +12,16 @@ using namespace Rcpp;
 
 generator <- trimLeft("
 // [[Rcpp::export(.RcppRoll_%s)]]
-SEXP roll_%s(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align) {
+SEXP roll_%s(SEXP x, int n, NumericVector weights,
+  int by, NumericVector fill_, bool partial, String align, bool normalize) {
 
   RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
     return RcppRoll::roll_matrix_with(
-        RcppRoll::%s_f(), NumericMatrix(x), n, weights, fill, partial, align);
+        RcppRoll::%s_f(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
   } else {
     return RcppRoll::roll_vector_with(
-        RcppRoll::%s_f(), NumericVector(x), n, weights, fill, partial, align);
+        RcppRoll::%s_f(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
   }
 
 }
@@ -45,7 +46,6 @@ if (has_flag(content, begin_flag) && has_flag(content, end_flag)) {
 }
 
 output <- c(content,
-            "",
             begin_flag,
             "",
             gen,
@@ -78,43 +78,50 @@ NULL
 wrapper <- trimLeft("
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_%s <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-                    align = c(\"center\", \"left\", \"right\")) {
+roll_%s <- function(x, n, weights = NULL, by = 1L,
+  fill = numeric(0), partial = FALSE,
+  align = c(\"center\", \"left\", \"right\"), normalize = TRUE) {
   return(.RcppRoll_%s(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_%sr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = \"right\") {
+roll_%sr <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = \"right\", normalize = TRUE) {
   return(.RcppRoll_%s(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_%sl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
-                     align = \"left\") {
+roll_%sl <- function(x, n, weights = NULL, by = 1L,
+  fill = NA, partial = FALSE, align = \"left\", normalize = TRUE) {
   return(.RcppRoll_%s(
     x,
     as.integer(n),
-    weights,
+    as.numeric(weights),
+    as.integer(by),
     as.numeric(fill),
     as.logical(partial),
-    as.character(match.arg(align))
+    as.character(match.arg(align)),
+    as.logical(normalize)
   ))
 }
 ")

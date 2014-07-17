@@ -6,19 +6,21 @@
 using namespace Rcpp;
 
 // roll_mean
-SEXP roll_mean(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align);
-RcppExport SEXP RcppRoll_roll_mean(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP) {
+SEXP roll_mean(SEXP x, int n, NumericVector weights, int by, NumericVector fill_, bool partial, String align, bool normalize);
+RcppExport SEXP RcppRoll_roll_mean(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP bySEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP, SEXP normalizeSEXP) {
 BEGIN_RCPP
     SEXP __sexp_result;
     {
         Rcpp::RNGScope __rngScope;
         Rcpp::traits::input_parameter< SEXP >::type x(xSEXP );
         Rcpp::traits::input_parameter< int >::type n(nSEXP );
-        Rcpp::traits::input_parameter< SEXP >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< int >::type by(bySEXP );
         Rcpp::traits::input_parameter< NumericVector >::type fill_(fill_SEXP );
         Rcpp::traits::input_parameter< bool >::type partial(partialSEXP );
         Rcpp::traits::input_parameter< String >::type align(alignSEXP );
-        SEXP __result = roll_mean(x, n, weights, fill_, partial, align);
+        Rcpp::traits::input_parameter< bool >::type normalize(normalizeSEXP );
+        SEXP __result = roll_mean(x, n, weights, by, fill_, partial, align, normalize);
         PROTECT(__sexp_result = Rcpp::wrap(__result));
     }
     UNPROTECT(1);
@@ -26,19 +28,21 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_median
-SEXP roll_median(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align);
-RcppExport SEXP RcppRoll_roll_median(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP) {
+SEXP roll_median(SEXP x, int n, NumericVector weights, int by, NumericVector fill_, bool partial, String align, bool normalize);
+RcppExport SEXP RcppRoll_roll_median(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP bySEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP, SEXP normalizeSEXP) {
 BEGIN_RCPP
     SEXP __sexp_result;
     {
         Rcpp::RNGScope __rngScope;
         Rcpp::traits::input_parameter< SEXP >::type x(xSEXP );
         Rcpp::traits::input_parameter< int >::type n(nSEXP );
-        Rcpp::traits::input_parameter< SEXP >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< int >::type by(bySEXP );
         Rcpp::traits::input_parameter< NumericVector >::type fill_(fill_SEXP );
         Rcpp::traits::input_parameter< bool >::type partial(partialSEXP );
         Rcpp::traits::input_parameter< String >::type align(alignSEXP );
-        SEXP __result = roll_median(x, n, weights, fill_, partial, align);
+        Rcpp::traits::input_parameter< bool >::type normalize(normalizeSEXP );
+        SEXP __result = roll_median(x, n, weights, by, fill_, partial, align, normalize);
         PROTECT(__sexp_result = Rcpp::wrap(__result));
     }
     UNPROTECT(1);
@@ -46,19 +50,21 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_min
-SEXP roll_min(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align);
-RcppExport SEXP RcppRoll_roll_min(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP) {
+SEXP roll_min(SEXP x, int n, NumericVector weights, int by, NumericVector fill_, bool partial, String align, bool normalize);
+RcppExport SEXP RcppRoll_roll_min(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP bySEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP, SEXP normalizeSEXP) {
 BEGIN_RCPP
     SEXP __sexp_result;
     {
         Rcpp::RNGScope __rngScope;
         Rcpp::traits::input_parameter< SEXP >::type x(xSEXP );
         Rcpp::traits::input_parameter< int >::type n(nSEXP );
-        Rcpp::traits::input_parameter< SEXP >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< int >::type by(bySEXP );
         Rcpp::traits::input_parameter< NumericVector >::type fill_(fill_SEXP );
         Rcpp::traits::input_parameter< bool >::type partial(partialSEXP );
         Rcpp::traits::input_parameter< String >::type align(alignSEXP );
-        SEXP __result = roll_min(x, n, weights, fill_, partial, align);
+        Rcpp::traits::input_parameter< bool >::type normalize(normalizeSEXP );
+        SEXP __result = roll_min(x, n, weights, by, fill_, partial, align, normalize);
         PROTECT(__sexp_result = Rcpp::wrap(__result));
     }
     UNPROTECT(1);
@@ -66,19 +72,21 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_max
-SEXP roll_max(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align);
-RcppExport SEXP RcppRoll_roll_max(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP) {
+SEXP roll_max(SEXP x, int n, NumericVector weights, int by, NumericVector fill_, bool partial, String align, bool normalize);
+RcppExport SEXP RcppRoll_roll_max(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP bySEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP, SEXP normalizeSEXP) {
 BEGIN_RCPP
     SEXP __sexp_result;
     {
         Rcpp::RNGScope __rngScope;
         Rcpp::traits::input_parameter< SEXP >::type x(xSEXP );
         Rcpp::traits::input_parameter< int >::type n(nSEXP );
-        Rcpp::traits::input_parameter< SEXP >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< int >::type by(bySEXP );
         Rcpp::traits::input_parameter< NumericVector >::type fill_(fill_SEXP );
         Rcpp::traits::input_parameter< bool >::type partial(partialSEXP );
         Rcpp::traits::input_parameter< String >::type align(alignSEXP );
-        SEXP __result = roll_max(x, n, weights, fill_, partial, align);
+        Rcpp::traits::input_parameter< bool >::type normalize(normalizeSEXP );
+        SEXP __result = roll_max(x, n, weights, by, fill_, partial, align, normalize);
         PROTECT(__sexp_result = Rcpp::wrap(__result));
     }
     UNPROTECT(1);
@@ -86,19 +94,21 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_prod
-SEXP roll_prod(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align);
-RcppExport SEXP RcppRoll_roll_prod(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP) {
+SEXP roll_prod(SEXP x, int n, NumericVector weights, int by, NumericVector fill_, bool partial, String align, bool normalize);
+RcppExport SEXP RcppRoll_roll_prod(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP bySEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP, SEXP normalizeSEXP) {
 BEGIN_RCPP
     SEXP __sexp_result;
     {
         Rcpp::RNGScope __rngScope;
         Rcpp::traits::input_parameter< SEXP >::type x(xSEXP );
         Rcpp::traits::input_parameter< int >::type n(nSEXP );
-        Rcpp::traits::input_parameter< SEXP >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< int >::type by(bySEXP );
         Rcpp::traits::input_parameter< NumericVector >::type fill_(fill_SEXP );
         Rcpp::traits::input_parameter< bool >::type partial(partialSEXP );
         Rcpp::traits::input_parameter< String >::type align(alignSEXP );
-        SEXP __result = roll_prod(x, n, weights, fill_, partial, align);
+        Rcpp::traits::input_parameter< bool >::type normalize(normalizeSEXP );
+        SEXP __result = roll_prod(x, n, weights, by, fill_, partial, align, normalize);
         PROTECT(__sexp_result = Rcpp::wrap(__result));
     }
     UNPROTECT(1);
@@ -106,19 +116,21 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_sum
-SEXP roll_sum(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align);
-RcppExport SEXP RcppRoll_roll_sum(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP) {
+SEXP roll_sum(SEXP x, int n, NumericVector weights, int by, NumericVector fill_, bool partial, String align, bool normalize);
+RcppExport SEXP RcppRoll_roll_sum(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP bySEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP, SEXP normalizeSEXP) {
 BEGIN_RCPP
     SEXP __sexp_result;
     {
         Rcpp::RNGScope __rngScope;
         Rcpp::traits::input_parameter< SEXP >::type x(xSEXP );
         Rcpp::traits::input_parameter< int >::type n(nSEXP );
-        Rcpp::traits::input_parameter< SEXP >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< int >::type by(bySEXP );
         Rcpp::traits::input_parameter< NumericVector >::type fill_(fill_SEXP );
         Rcpp::traits::input_parameter< bool >::type partial(partialSEXP );
         Rcpp::traits::input_parameter< String >::type align(alignSEXP );
-        SEXP __result = roll_sum(x, n, weights, fill_, partial, align);
+        Rcpp::traits::input_parameter< bool >::type normalize(normalizeSEXP );
+        SEXP __result = roll_sum(x, n, weights, by, fill_, partial, align, normalize);
         PROTECT(__sexp_result = Rcpp::wrap(__result));
     }
     UNPROTECT(1);
@@ -126,19 +138,21 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_sd
-SEXP roll_sd(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align);
-RcppExport SEXP RcppRoll_roll_sd(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP) {
+SEXP roll_sd(SEXP x, int n, NumericVector weights, int by, NumericVector fill_, bool partial, String align, bool normalize);
+RcppExport SEXP RcppRoll_roll_sd(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP bySEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP, SEXP normalizeSEXP) {
 BEGIN_RCPP
     SEXP __sexp_result;
     {
         Rcpp::RNGScope __rngScope;
         Rcpp::traits::input_parameter< SEXP >::type x(xSEXP );
         Rcpp::traits::input_parameter< int >::type n(nSEXP );
-        Rcpp::traits::input_parameter< SEXP >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< int >::type by(bySEXP );
         Rcpp::traits::input_parameter< NumericVector >::type fill_(fill_SEXP );
         Rcpp::traits::input_parameter< bool >::type partial(partialSEXP );
         Rcpp::traits::input_parameter< String >::type align(alignSEXP );
-        SEXP __result = roll_sd(x, n, weights, fill_, partial, align);
+        Rcpp::traits::input_parameter< bool >::type normalize(normalizeSEXP );
+        SEXP __result = roll_sd(x, n, weights, by, fill_, partial, align, normalize);
         PROTECT(__sexp_result = Rcpp::wrap(__result));
     }
     UNPROTECT(1);
@@ -146,19 +160,21 @@ BEGIN_RCPP
 END_RCPP
 }
 // roll_var
-SEXP roll_var(SEXP x, int n, SEXP weights, NumericVector fill_, bool partial, String align);
-RcppExport SEXP RcppRoll_roll_var(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP) {
+SEXP roll_var(SEXP x, int n, NumericVector weights, int by, NumericVector fill_, bool partial, String align, bool normalize);
+RcppExport SEXP RcppRoll_roll_var(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP bySEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP, SEXP normalizeSEXP) {
 BEGIN_RCPP
     SEXP __sexp_result;
     {
         Rcpp::RNGScope __rngScope;
         Rcpp::traits::input_parameter< SEXP >::type x(xSEXP );
         Rcpp::traits::input_parameter< int >::type n(nSEXP );
-        Rcpp::traits::input_parameter< SEXP >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP );
+        Rcpp::traits::input_parameter< int >::type by(bySEXP );
         Rcpp::traits::input_parameter< NumericVector >::type fill_(fill_SEXP );
         Rcpp::traits::input_parameter< bool >::type partial(partialSEXP );
         Rcpp::traits::input_parameter< String >::type align(alignSEXP );
-        SEXP __result = roll_var(x, n, weights, fill_, partial, align);
+        Rcpp::traits::input_parameter< bool >::type normalize(normalizeSEXP );
+        SEXP __result = roll_var(x, n, weights, by, fill_, partial, align, normalize);
         PROTECT(__sexp_result = Rcpp::wrap(__result));
     }
     UNPROTECT(1);

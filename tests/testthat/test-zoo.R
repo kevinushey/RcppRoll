@@ -33,7 +33,8 @@ test_that("we behave similarly to zoo::rollapply", {
   args <- expand.grid(
     width = list(3L, 10L, 100L),
     fill = list(NA, c(-1, 0, 1)),
-    align = list("left", "center", "right")
+    align = list("left", "center", "right"),
+    by = c(1L, 2L, 5L)
   )
 
   data <- rnorm(1E2, 100, 50)

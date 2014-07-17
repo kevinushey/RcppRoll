@@ -27,77 +27,77 @@
 \alias{roll_varr}
 \title{RcppRoll}
 \usage{
-roll_mean(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-  align = c("center", "left", "right"))
+roll_mean(x, n, weights = NULL, by = 1L, fill = numeric(0),
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
 
-roll_meanr(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "right")
+roll_meanr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "right", normalize = TRUE)
 
-roll_meanl(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "left")
+roll_meanl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "left", normalize = TRUE)
 
-roll_median(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-  align = c("center", "left", "right"))
+roll_median(x, n, weights = NULL, by = 1L, fill = numeric(0),
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
 
-roll_medianr(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "right")
+roll_medianr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "right", normalize = TRUE)
 
-roll_medianl(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "left")
+roll_medianl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "left", normalize = TRUE)
 
-roll_min(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-  align = c("center", "left", "right"))
+roll_min(x, n, weights = NULL, by = 1L, fill = numeric(0),
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
 
-roll_minr(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "right")
+roll_minr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "right", normalize = TRUE)
 
-roll_minl(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "left")
+roll_minl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "left", normalize = TRUE)
 
-roll_max(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-  align = c("center", "left", "right"))
+roll_max(x, n, weights = NULL, by = 1L, fill = numeric(0),
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
 
-roll_maxr(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "right")
+roll_maxr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "right", normalize = TRUE)
 
-roll_maxl(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "left")
+roll_maxl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "left", normalize = TRUE)
 
-roll_prod(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-  align = c("center", "left", "right"))
+roll_prod(x, n, weights = NULL, by = 1L, fill = numeric(0),
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
 
-roll_prodr(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "right")
+roll_prodr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "right", normalize = TRUE)
 
-roll_prodl(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "left")
+roll_prodl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "left", normalize = TRUE)
 
-roll_sum(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-  align = c("center", "left", "right"))
+roll_sum(x, n, weights = NULL, by = 1L, fill = numeric(0),
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
 
-roll_sumr(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "right")
+roll_sumr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "right", normalize = TRUE)
 
-roll_suml(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "left")
+roll_suml(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "left", normalize = TRUE)
 
-roll_sd(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-  align = c("center", "left", "right"))
+roll_sd(x, n, weights = NULL, by = 1L, fill = numeric(0),
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
 
-roll_sdr(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "right")
+roll_sdr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "right", normalize = TRUE)
 
-roll_sdl(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "left")
+roll_sdl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "left", normalize = TRUE)
 
-roll_var(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
-  align = c("center", "left", "right"))
+roll_var(x, n, weights = NULL, by = 1L, fill = numeric(0),
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
 
-roll_varr(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "right")
+roll_varr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "right", normalize = TRUE)
 
-roll_varl(x, n, weights = NULL, fill = NA, partial = FALSE,
-  align = "left")
+roll_varl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
+  align = "left", normalize = TRUE)
 }
 \arguments{
 \item{x}{A numeric vector or a numeric matrix.}
