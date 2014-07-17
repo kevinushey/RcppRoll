@@ -205,7 +205,12 @@ T roll_matrix_with(Callable f,
   int nrow = x.nrow();
   int ncol = x.ncol();
 
-  T output(nrow - n + 1, ncol);
+  T output;
+  if (fill.filled()) {
+    output = T(nrow, ncol);
+  } else {
+    output = T(nrow - n + 1, ncol);
+  }
 
   for (int i = 0; i < ncol; ++i) {
     output(_, i) = roll_vector_with(

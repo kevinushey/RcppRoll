@@ -2,14 +2,23 @@ context("zoo")
 
 test_that("we behave similarly to zoo::rollapply", {
 
+  library(testthat)
+
   x <- rnorm(50)
   window <- 5L
 
-  run_tests <- function(data, width, ...) {
+  run_tests <- function(data, width, ..., gctorture = FALSE) {
     functions <- c("mean", "median", "prod", "min", "max", "sum")
     for (f in functions) {
       RcppRoll <- get(paste("roll", f, sep = "_"), envir = asNamespace("RcppRoll"))
-      expect_equal(RcppRoll(data, width, ...), zoo::rollapply(data, width, FUN = get(f), ...))
+      zoo <- zoo::rollapply(data, width, FUN = get(f), ...)
+      if (is.matrix(zoo)) {
+        dimnames(zoo) <- NULL
+      }
+      if (gctorture) gctorture(TRUE)
+      RcppRollRes <- RcppRoll(data, width, ...)
+      if (gctorture) gctorture(FALSE)
+      expect_equal(RcppRollRes, zoo)
     }
   }
 
@@ -38,6 +47,11 @@ test_that("we behave similarly to zoo::rollapply", {
   )
 
   data <- rnorm(1E2, 100, 50)
+  for (i in 1:nrow(args)) {
+    run_tests(data, args$width[[i]], fill = args$fill[[i]], align = args$align[[i]])
+  }
+
+  data <- matrix(rnorm(1E3, 100, 50), nrow = 100)
   for (i in 1:nrow(args)) {
     run_tests(data, args$width[[i]], fill = args$fill[[i]], align = args$align[[i]])
   }
