@@ -99,7 +99,7 @@
 #'     times=10
 #'     )
 #'   }}
-#' @importFrom Rcpp evalCpp
+#' @importFrom Rcpp sourceCpp
 rollit <- function( fun="x",
                     vector=FALSE,
                     const_vars=NULL,

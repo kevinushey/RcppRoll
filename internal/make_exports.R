@@ -92,7 +92,7 @@ roll_%s <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_%sr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_%sr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = \"right\") {
   return(.RcppRoll_%s(
     x,
@@ -106,7 +106,7 @@ roll_%sr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_%sl <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_%sl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = \"left\") {
   return(.RcppRoll_%s(
     x,

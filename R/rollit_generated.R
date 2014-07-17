@@ -32,7 +32,7 @@ roll_mean <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_meanr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_meanr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "right") {
   return(.RcppRoll_mean(
     x,
@@ -46,7 +46,7 @@ roll_meanr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_meanl <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_meanl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "left") {
   return(.RcppRoll_mean(
     x,
@@ -74,7 +74,7 @@ roll_median <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_medianr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_medianr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "right") {
   return(.RcppRoll_median(
     x,
@@ -88,7 +88,7 @@ roll_medianr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALS
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_medianl <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_medianl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "left") {
   return(.RcppRoll_median(
     x,
@@ -116,7 +116,7 @@ roll_min <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_minr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_minr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "right") {
   return(.RcppRoll_min(
     x,
@@ -130,7 +130,7 @@ roll_minr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_minl <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_minl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "left") {
   return(.RcppRoll_min(
     x,
@@ -158,7 +158,7 @@ roll_max <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_maxr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_maxr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "right") {
   return(.RcppRoll_max(
     x,
@@ -172,7 +172,7 @@ roll_maxr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_maxl <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_maxl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "left") {
   return(.RcppRoll_max(
     x,
@@ -200,7 +200,7 @@ roll_prod <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_prodr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_prodr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "right") {
   return(.RcppRoll_prod(
     x,
@@ -214,7 +214,7 @@ roll_prodr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_prodl <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_prodl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "left") {
   return(.RcppRoll_prod(
     x,
@@ -242,7 +242,7 @@ roll_sum <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_sumr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_sumr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "right") {
   return(.RcppRoll_sum(
     x,
@@ -256,7 +256,7 @@ roll_sumr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_suml <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_suml <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "left") {
   return(.RcppRoll_sum(
     x,
@@ -284,7 +284,7 @@ roll_sd <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_sdr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_sdr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "right") {
   return(.RcppRoll_sd(
     x,
@@ -298,7 +298,7 @@ roll_sdr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_sdl <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_sdl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "left") {
   return(.RcppRoll_sd(
     x,
@@ -326,7 +326,7 @@ roll_var <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_varr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_varr <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "right") {
   return(.RcppRoll_var(
     x,
@@ -340,7 +340,7 @@ roll_varr <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_varl <- function(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_varl <- function(x, n, weights = NULL, fill = NA, partial = FALSE,
                      align = "left") {
   return(.RcppRoll_var(
     x,

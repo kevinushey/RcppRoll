@@ -30,73 +30,73 @@
 roll_mean(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
   align = c("center", "left", "right"))
 
-roll_meanr(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_meanr(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "right")
 
-roll_meanl(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_meanl(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "left")
 
 roll_median(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
   align = c("center", "left", "right"))
 
-roll_medianr(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_medianr(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "right")
 
-roll_medianl(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_medianl(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "left")
 
 roll_min(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
   align = c("center", "left", "right"))
 
-roll_minr(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_minr(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "right")
 
-roll_minl(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_minl(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "left")
 
 roll_max(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
   align = c("center", "left", "right"))
 
-roll_maxr(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_maxr(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "right")
 
-roll_maxl(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_maxl(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "left")
 
 roll_prod(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
   align = c("center", "left", "right"))
 
-roll_prodr(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_prodr(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "right")
 
-roll_prodl(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_prodl(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "left")
 
 roll_sum(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
   align = c("center", "left", "right"))
 
-roll_sumr(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_sumr(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "right")
 
-roll_suml(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_suml(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "left")
 
 roll_sd(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
   align = c("center", "left", "right"))
 
-roll_sdr(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_sdr(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "right")
 
-roll_sdl(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_sdl(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "left")
 
 roll_var(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
   align = c("center", "left", "right"))
 
-roll_varr(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_varr(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "right")
 
-roll_varl(x, n, weights = NULL, fill = numeric(0), partial = FALSE,
+roll_varl(x, n, weights = NULL, fill = NA, partial = FALSE,
   align = "left")
 }
 \arguments{
