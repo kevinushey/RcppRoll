@@ -8,12 +8,14 @@
 ##' @param x A numeric vector or a numeric matrix.
 ##' @param n A window size.
 ##' @param weights A vector of length \code{n}, giving the weights for each
-##'   element within a window.
+##'   element within a window. If \code{NULL}, we take unit weights of width \code{n}.
+##' @param by Calculate at every \code{by}-th point rather than every point.
 ##' @param fill Either an empty vector (no fill), or a vector (recycled to)
 ##'   length 3 giving left, middle and right fills.
 ##' @param partial Partial application? Currently unimplemented.
 ##' @param align Align windows on the \code{"left"}, \code{"middle"} or
 ##'   \code{"right"}.
+##' @param normalize Normalize window weights, such that they sum to \code{n}.
 NULL
 
 ##' @rdname RcppRoll-exports

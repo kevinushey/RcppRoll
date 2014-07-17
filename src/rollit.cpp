@@ -98,7 +98,7 @@ T roll_vector_with(Callable f,
                    bool normalize) {
 
   if (normalize && weights.size())
-    weights = weights / sum(weights);
+    weights = weights / sum(weights) * n;
 
   return fill.filled() ?
     roll_vector_with_fill(f, x, n, weights, by, fill, partial, align) :
@@ -125,7 +125,12 @@ T roll_vector_with_fill(Callable f,
   int ops_n = x_n - n + 1;
   int output_n = padLeftTimes + ops_n + padRightTimes;
 
-  T result(output_n, fill.middle());
+  T result;
+  if (by > 1) {
+    result = static_cast<T>(no_init(output_n));
+  } else {
+    result = T(output_n, fill.middle());
+  }
 
   // pad left
   for (int i = 0; i < padLeftTimes; ++i) {
@@ -165,7 +170,12 @@ T roll_vector_with_nofill(Callable f,
   int ops_n = x_n - n + 1;
   int output_n = ops_n;
 
-  T result(output_n, fill.middle());
+  T result;
+  if (by > 1) {
+    result = static_cast<T>(no_init(output_n));
+  } else {
+    result = T(output_n, fill.middle());
+  }
 
   // fill result
   if (weights.size()) {

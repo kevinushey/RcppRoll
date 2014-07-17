@@ -105,7 +105,9 @@ roll_varl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
 \item{n}{A window size.}
 
 \item{weights}{A vector of length \code{n}, giving the weights for each
-element within a window.}
+element within a window. If \code{NULL}, we take unit weights of width \code{n}.}
+
+\item{by}{Calculate at every \code{by}-th point rather than every point.}
 
 \item{fill}{Either an empty vector (no fill), or a vector (recycled to)
 length 3 giving left, middle and right fills.}
@@ -114,6 +116,8 @@ length 3 giving left, middle and right fills.}
 
 \item{align}{Align windows on the \code{"left"}, \code{"middle"} or
 \code{"right"}.}
+
+\item{normalize}{Normalize window weights, such that they sum to \code{n}.}
 }
 \description{
 The following functions are provided directly by \code{RcppRoll}.
