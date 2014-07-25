@@ -27,6 +27,9 @@ Fill (NumericVector const& vector) {
       filled_ = true;
       break;
     }
+    default: {
+      stop("'fill' should be a vector of size 0, 1, or 3");
+    }
   }
 }
 
@@ -221,8 +224,41 @@ T roll_matrix_with(Callable f,
   return output;
 }
 
-struct mean_f {
+template <bool NA_RM>
+struct mean_f;
 
+template <>
+struct mean_f<true> {
+  inline double operator()(NumericVector const& x, int offset, int n) {
+    double result = 0.0;
+    int num = 0;
+    for (int i = 0; i < n; ++i) {
+      if (!::isnan(x[offset + i])) {
+        result += x[offset + i];
+        ++num;
+      }
+    }
+    return result / num;
+  }
+
+  inline double operator()(NumericVector const& x,
+                           int offset,
+                           NumericVector& weights,
+                           int n) {
+    double result = 0.0;
+    int num = 0;
+    for (int i = 0; i < n; ++i) {
+      if (::isnan(x[offset + i])) {
+        result += x[offset + i] * weights[i];
+        ++num;
+      }
+    }
+    return result / num;
+  }
+};
+
+template <>
+struct mean_f<false> {
   inline double operator()(NumericVector const& x, int offset, int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
@@ -243,7 +279,11 @@ struct mean_f {
   }
 };
 
-struct sum_f {
+template <bool NA_RM>
+struct sum_f;
+
+template <>
+struct sum_f<false> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
     double result = 0.0;
@@ -263,9 +303,76 @@ struct sum_f {
     }
     return result;
   }
+
 };
 
-struct min_f {
+template <>
+struct sum_f<true> {
+
+  inline double operator()(NumericVector const& x, int offset, int n) {
+    double result = 0.0;
+    for (int i = 0; i < n; ++i) {
+      if (!::isnan(x[offset + i])) {
+        result += x[offset + i];
+      }
+    }
+    return result;
+  }
+
+  inline double operator()(NumericVector const& x,
+                           int offset,
+                           NumericVector& weights,
+                           int n) {
+    double result = 0.0;
+    for (int i = 0; i < n; ++i) {
+      if (!::isnan(x[offset + i])) {
+        result += x[offset + i] * weights[i];
+      }
+    }
+    return result;
+  }
+
+};
+
+template <bool NA_RM>
+struct min_f;
+
+template <>
+struct min_f<false> {
+
+  inline double operator()(NumericVector const& x,
+                           int offset,
+                           int n) {
+    double result = R_PosInf;
+    for (int i = 0; i < n; ++i) {
+      if (::isnan(x[offset + i])) {
+        return NA_REAL;
+      }
+      result = x[offset + i] < result ? x[offset + i] : result;
+    }
+    return result;
+  }
+
+  inline double operator()(NumericVector const& x,
+                           int offset,
+                           NumericVector& weights,
+                           int n) {
+    double result = R_PosInf;
+    for (int i = 0; i < n; ++i) {
+      if (::isnan(x[offset + i])) {
+        return NA_REAL;
+      }
+#define VALUE (x[offset + i] * weights[i])
+      result = VALUE < result ? VALUE : result;
+#undef VALUE
+    }
+    return result;
+  }
+
+};
+
+template <>
+struct min_f<true> {
 
   inline double operator()(NumericVector const& x,
                            int offset,
@@ -291,7 +398,11 @@ struct min_f {
   }
 };
 
-struct max_f {
+template <bool NA_RM>
+struct max_f;
+
+template <>
+struct max_f<false> {
 
   inline double operator()(NumericVector const& x,
                            int offset,
@@ -299,6 +410,9 @@ struct max_f {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
+      if (::isnan(x[offset + i])) {
+        return NA_REAL;
+      }
 #define VALUE (x[offset + i] * weights[i])
       result = VALUE < result ? result : VALUE;
 #undef VALUE
@@ -311,13 +425,76 @@ struct max_f {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
+      if (::isnan(x[offset + i])) {
+        return NA_REAL;
+      }
       result = x[offset + i] < result ? result : x[offset + i];
     }
     return result;
   }
 };
 
-struct prod_f {
+template <>
+struct max_f<true> {
+
+  inline double operator()(NumericVector const& x,
+                           int offset,
+                           NumericVector& weights,
+                           int n) {
+    double result = R_NegInf;
+    for (int i = 0; i < n; ++i) {
+      if (::isnan(x[offset + i])) continue;
+#define VALUE (x[offset + i] * weights[i])
+      result = VALUE < result ? result : VALUE;
+#undef VALUE
+    }
+    return result;
+  }
+
+  inline double operator()(NumericVector const& x,
+                           int offset,
+                           int n) {
+    double result = R_NegInf;
+    for (int i = 0; i < n; ++i) {
+      if (::isnan(x[offset + i])) continue;
+      result = x[offset + i] < result ? result : x[offset + i];
+    }
+    return result;
+  }
+};
+
+template <bool NA_RM>
+struct prod_f;
+
+template <>
+struct prod_f<true> {
+
+  inline double operator()(NumericVector const& x, int offset, int n) {
+    double result = 1.0;
+    for (int i = 0; i < n; ++i) {
+      if (!::isnan(x[offset + i])) {
+        result *= x[offset + i];
+      }
+    }
+    return result;
+  }
+
+  inline double operator()(NumericVector const& x,
+                           int offset,
+                           NumericVector& weights,
+                           int n) {
+    double result = 1.0;
+    for (int i = 0; i < n; ++i) {
+      if (!::isnan(x[offset + i])) {
+        result *= x[offset + i] * weights[i];
+      }
+    }
+    return result;
+  }
+};
+
+template <>
+struct prod_f<false> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
     double result = 1.0;
@@ -339,15 +516,11 @@ struct prod_f {
   }
 };
 
-std::vector<double> square(std::vector<double> const& x, int exponent) {
-  std::vector<double> result;
-  result.reserve(x.size());
-  std::transform(
-      x.begin(), x.begin(), result.begin(), [](double x) { return x * x; });
-  return result;
-}
+template <bool NA_RM>
+struct median_f;
 
-struct median_f {
+template <>
+struct median_f<false> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
 
@@ -391,7 +564,56 @@ struct median_f {
 
 };
 
-struct var_f {
+template <>
+struct median_f<true> {
+
+  inline double operator()(NumericVector const& x, int offset, int n) {
+
+    std::vector<double> copied(n / 2 + 1);
+
+    std::partial_sort_copy(
+      x.begin() + offset,
+      x.begin() + offset + n,
+      copied.begin(),
+      copied.begin() + n / 2 + 1
+    );
+
+    if (n % 2 == 0) {
+      return (copied[n / 2 - 1] + copied[n / 2]) / 2;
+    } else {
+      return copied[n / 2];
+    }
+
+  }
+
+  inline double operator()(NumericVector const& x,
+                           int offset,
+                           NumericVector& weights,
+                           int n) {
+
+    NumericVector copy(x.begin() + offset, x.begin() + offset + n);
+    std::sort(copy.begin(), copy.end());
+
+    double weights_sum = sum(weights);
+
+    int k = 0;
+    double sum = weights_sum - weights[0];
+
+    while (sum > weights_sum / 2) {
+      ++k;
+      sum -= weights[k];
+    }
+
+    return copy[k];
+  }
+
+};
+
+template <bool NA_RM>
+struct var_f;
+
+template <>
+struct var_f<false> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
     return var(NumericVector(x.begin() + offset, x.begin() + offset + n));
@@ -404,7 +626,28 @@ struct var_f {
 
 };
 
-struct sd_f {
+template <>
+struct var_f<true> {
+
+  inline double operator()(NumericVector const& x, int offset, int n) {
+    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
+    sub = na_omit(sub);
+    return var(sub);
+  }
+
+  inline double operator()(NumericVector const& x, int offset, NumericVector weights, int n) {
+    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
+    sub = na_omit(sub);
+    return var(sub * weights);
+  }
+
+};
+
+template <bool NA_RM>
+struct sd_f;
+
+template <>
+struct sd_f<false> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
     return sqrt(var(NumericVector(x.begin() + offset, x.begin() + offset + n)));
@@ -417,126 +660,223 @@ struct sd_f {
 
 };
 
+template <>
+struct sd_f<true> {
+
+  inline double operator()(NumericVector const& x, int offset, int n) {
+    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
+    sub = na_omit(sub);
+    return sqrt(var(sub));
+  }
+
+  inline double operator()(NumericVector const& x, int offset, NumericVector weights, int n) {
+    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
+    sub = na_omit(sub);
+    return sqrt(var(sub * weights));
+  }
+
+};
+
 }  // end namespace RcppRoll
 
 // Begin auto-generated exports (internal/make_exports.R)
 
 // [[Rcpp::export(.RcppRoll_mean)]]
 SEXP roll_mean(SEXP x, int n, NumericVector weights,
-  int by, NumericVector fill_, bool partial, String align, bool normalize) {
+  int by, NumericVector fill_, bool partial, String align, bool normalize, bool na_rm) {
 
   RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
-    return RcppRoll::roll_matrix_with(
-        RcppRoll::mean_f(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::mean_f<true>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::mean_f<false>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    }
   } else {
-    return RcppRoll::roll_vector_with(
-        RcppRoll::mean_f(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::mean_f<true>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::mean_f<false>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    }
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_median)]]
 SEXP roll_median(SEXP x, int n, NumericVector weights,
-  int by, NumericVector fill_, bool partial, String align, bool normalize) {
+  int by, NumericVector fill_, bool partial, String align, bool normalize, bool na_rm) {
 
   RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
-    return RcppRoll::roll_matrix_with(
-        RcppRoll::median_f(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::median_f<true>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::median_f<false>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    }
   } else {
-    return RcppRoll::roll_vector_with(
-        RcppRoll::median_f(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::median_f<true>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::median_f<false>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    }
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_min)]]
 SEXP roll_min(SEXP x, int n, NumericVector weights,
-  int by, NumericVector fill_, bool partial, String align, bool normalize) {
+  int by, NumericVector fill_, bool partial, String align, bool normalize, bool na_rm) {
 
   RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
-    return RcppRoll::roll_matrix_with(
-        RcppRoll::min_f(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::min_f<true>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::min_f<false>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    }
   } else {
-    return RcppRoll::roll_vector_with(
-        RcppRoll::min_f(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::min_f<true>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::min_f<false>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    }
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_max)]]
 SEXP roll_max(SEXP x, int n, NumericVector weights,
-  int by, NumericVector fill_, bool partial, String align, bool normalize) {
+  int by, NumericVector fill_, bool partial, String align, bool normalize, bool na_rm) {
 
   RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
-    return RcppRoll::roll_matrix_with(
-        RcppRoll::max_f(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::max_f<true>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::max_f<false>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    }
   } else {
-    return RcppRoll::roll_vector_with(
-        RcppRoll::max_f(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::max_f<true>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::max_f<false>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    }
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_prod)]]
 SEXP roll_prod(SEXP x, int n, NumericVector weights,
-  int by, NumericVector fill_, bool partial, String align, bool normalize) {
+  int by, NumericVector fill_, bool partial, String align, bool normalize, bool na_rm) {
 
   RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
-    return RcppRoll::roll_matrix_with(
-        RcppRoll::prod_f(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::prod_f<true>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::prod_f<false>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    }
   } else {
-    return RcppRoll::roll_vector_with(
-        RcppRoll::prod_f(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::prod_f<true>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::prod_f<false>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    }
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_sum)]]
 SEXP roll_sum(SEXP x, int n, NumericVector weights,
-  int by, NumericVector fill_, bool partial, String align, bool normalize) {
+  int by, NumericVector fill_, bool partial, String align, bool normalize, bool na_rm) {
 
   RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
-    return RcppRoll::roll_matrix_with(
-        RcppRoll::sum_f(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::sum_f<true>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::sum_f<false>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    }
   } else {
-    return RcppRoll::roll_vector_with(
-        RcppRoll::sum_f(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::sum_f<true>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::sum_f<false>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    }
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_sd)]]
 SEXP roll_sd(SEXP x, int n, NumericVector weights,
-  int by, NumericVector fill_, bool partial, String align, bool normalize) {
+  int by, NumericVector fill_, bool partial, String align, bool normalize, bool na_rm) {
 
   RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
-    return RcppRoll::roll_matrix_with(
-        RcppRoll::sd_f(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::sd_f<true>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::sd_f<false>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    }
   } else {
-    return RcppRoll::roll_vector_with(
-        RcppRoll::sd_f(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::sd_f<true>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::sd_f<false>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    }
   }
 
 }
 
 // [[Rcpp::export(.RcppRoll_var)]]
 SEXP roll_var(SEXP x, int n, NumericVector weights,
-  int by, NumericVector fill_, bool partial, String align, bool normalize) {
+  int by, NumericVector fill_, bool partial, String align, bool normalize, bool na_rm) {
 
   RcppRoll::Fill fill(fill_);
   if (Rf_isMatrix(x)) {
-    return RcppRoll::roll_matrix_with(
-        RcppRoll::var_f(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::var_f<true>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_matrix_with(
+        RcppRoll::var_f<false>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
+    }
   } else {
-    return RcppRoll::roll_vector_with(
-        RcppRoll::var_f(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    if (na_rm) {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::var_f<true>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    } else {
+      return RcppRoll::roll_vector_with(
+        RcppRoll::var_f<false>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
+    }
   }
 
 }

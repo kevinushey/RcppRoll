@@ -28,76 +28,84 @@
 \title{RcppRoll}
 \usage{
 roll_mean(x, n, weights = NULL, by = 1L, fill = numeric(0),
-  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE,
+  na.rm = FALSE)
 
 roll_meanr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "right", normalize = TRUE)
+  align = "right", normalize = TRUE, na.rm = FALSE)
 
 roll_meanl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "left", normalize = TRUE)
+  align = "left", normalize = TRUE, na.rm = FALSE)
 
 roll_median(x, n, weights = NULL, by = 1L, fill = numeric(0),
-  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE,
+  na.rm = FALSE)
 
 roll_medianr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "right", normalize = TRUE)
+  align = "right", normalize = TRUE, na.rm = FALSE)
 
 roll_medianl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "left", normalize = TRUE)
+  align = "left", normalize = TRUE, na.rm = FALSE)
 
 roll_min(x, n, weights = NULL, by = 1L, fill = numeric(0),
-  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE,
+  na.rm = FALSE)
 
 roll_minr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "right", normalize = TRUE)
+  align = "right", normalize = TRUE, na.rm = FALSE)
 
 roll_minl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "left", normalize = TRUE)
+  align = "left", normalize = TRUE, na.rm = FALSE)
 
 roll_max(x, n, weights = NULL, by = 1L, fill = numeric(0),
-  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE,
+  na.rm = FALSE)
 
 roll_maxr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "right", normalize = TRUE)
+  align = "right", normalize = TRUE, na.rm = FALSE)
 
 roll_maxl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "left", normalize = TRUE)
+  align = "left", normalize = TRUE, na.rm = FALSE)
 
 roll_prod(x, n, weights = NULL, by = 1L, fill = numeric(0),
-  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE,
+  na.rm = FALSE)
 
 roll_prodr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "right", normalize = TRUE)
+  align = "right", normalize = TRUE, na.rm = FALSE)
 
 roll_prodl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "left", normalize = TRUE)
+  align = "left", normalize = TRUE, na.rm = FALSE)
 
 roll_sum(x, n, weights = NULL, by = 1L, fill = numeric(0),
-  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE,
+  na.rm = FALSE)
 
 roll_sumr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "right", normalize = TRUE)
+  align = "right", normalize = TRUE, na.rm = FALSE)
 
 roll_suml(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "left", normalize = TRUE)
+  align = "left", normalize = TRUE, na.rm = FALSE)
 
 roll_sd(x, n, weights = NULL, by = 1L, fill = numeric(0),
-  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE,
+  na.rm = FALSE)
 
 roll_sdr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "right", normalize = TRUE)
+  align = "right", normalize = TRUE, na.rm = FALSE)
 
 roll_sdl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "left", normalize = TRUE)
+  align = "left", normalize = TRUE, na.rm = FALSE)
 
 roll_var(x, n, weights = NULL, by = 1L, fill = numeric(0),
-  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE)
+  partial = FALSE, align = c("center", "left", "right"), normalize = TRUE,
+  na.rm = FALSE)
 
 roll_varr(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "right", normalize = TRUE)
+  align = "right", normalize = TRUE, na.rm = FALSE)
 
 roll_varl(x, n, weights = NULL, by = 1L, fill = NA, partial = FALSE,
-  align = "left", normalize = TRUE)
+  align = "left", normalize = TRUE, na.rm = FALSE)
 }
 \arguments{
 \item{x}{A numeric vector or a numeric matrix.}
@@ -118,6 +126,8 @@ length 3 giving left, middle and right fills.}
 \code{"right"}.}
 
 \item{normalize}{Normalize window weights, such that they sum to \code{n}.}
+
+\item{na.rm}{Remove missing values?}
 }
 \description{
 The following functions are provided directly by \code{RcppRoll}.

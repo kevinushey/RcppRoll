@@ -11,7 +11,7 @@ vectors and matrices.
 \details{
 Currently, the exported functions are:
  \itemize{
-  \item{\code{\link{roll_max}}}
+ \item{\code{\link{roll_max}}}
  \item{\code{\link{roll_mean}}}
  \item{\code{\link{roll_median}}}
  \item{\code{\link{roll_min}}}

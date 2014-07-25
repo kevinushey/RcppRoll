@@ -17,5 +17,6 @@ Suggests:
     microbenchmark,
     testthat
 Imports:
-    Rcpp
-LinkingTo: Rcpp
+    Rcpp,
+    RcppArmadillo
+LinkingTo: Rcpp, RcppArmadillo
