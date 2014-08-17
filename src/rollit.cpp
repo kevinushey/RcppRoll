@@ -248,7 +248,7 @@ struct mean_f<true> {
     double result = 0.0;
     int num = 0;
     for (int i = 0; i < n; ++i) {
-      if (::isnan(x[offset + i])) {
+      if (!::isnan(x[offset + i])) {
         result += x[offset + i] * weights[i];
         ++num;
       }
