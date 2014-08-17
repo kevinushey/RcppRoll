@@ -100,6 +100,11 @@ T roll_vector_with(Callable f,
                    String const& align,
                    bool normalize) {
 
+  // Normalize 'n' to match that of weights
+  if (weights.size()) {
+    n = weights.size();
+  }
+
   if (normalize && weights.size())
     weights = weights / sum(weights) * n;
 
@@ -119,6 +124,10 @@ T roll_vector_with_fill(Callable f,
                    Fill const& fill,
                    bool partial,
                    String const& align) {
+
+  if (x.size() < n) {
+    return rep(T::get_na(), x.size());
+  }
 
   // figure out if we need to pad at the start, end, etc.
   int padLeftTimes  = getLeftPadding(fill, align, n);

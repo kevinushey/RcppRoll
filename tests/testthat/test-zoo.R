@@ -76,3 +76,17 @@ test_that("we behave similarly to zoo::rollapply", {
   }
 
 })
+
+test_that("we don't segfault when window size > vector size on ops with fill", {
+
+  x <- c(1:5)
+  w <- 10
+  gctorture(TRUE)
+  result <- roll_meanr(x, w)
+  gctorture(FALSE)
+  expect_identical(
+    roll_meanr(x, w),
+    rep(NA_real_, length(x))
+  )
+
+})
