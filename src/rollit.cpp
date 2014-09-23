@@ -3,6 +3,8 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
+#include <math.h> // so we definitely get isnan
+
 namespace RcppRoll {
 
 class Fill {
@@ -242,7 +244,7 @@ struct mean_f<true> {
     double result = 0.0;
     int num = 0;
     for (int i = 0; i < n; ++i) {
-      if (!::isnan(x[offset + i])) {
+      if (!std::isnan(x[offset + i])) {
         result += x[offset + i];
         ++num;
       }
@@ -257,7 +259,7 @@ struct mean_f<true> {
     double result = 0.0;
     int num = 0;
     for (int i = 0; i < n; ++i) {
-      if (!::isnan(x[offset + i])) {
+      if (!std::isnan(x[offset + i])) {
         result += x[offset + i] * weights[i];
         ++num;
       }
@@ -321,7 +323,7 @@ struct sum_f<true> {
   inline double operator()(NumericVector const& x, int offset, int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!::isnan(x[offset + i])) {
+      if (!std::isnan(x[offset + i])) {
         result += x[offset + i];
       }
     }
@@ -334,7 +336,7 @@ struct sum_f<true> {
                            int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!::isnan(x[offset + i])) {
+      if (!std::isnan(x[offset + i])) {
         result += x[offset + i] * weights[i];
       }
     }
@@ -354,7 +356,7 @@ struct min_f<false> {
                            int n) {
     double result = R_PosInf;
     for (int i = 0; i < n; ++i) {
-      if (::isnan(x[offset + i])) {
+      if (std::isnan(x[offset + i])) {
         return NA_REAL;
       }
       result = x[offset + i] < result ? x[offset + i] : result;
@@ -368,7 +370,7 @@ struct min_f<false> {
                            int n) {
     double result = R_PosInf;
     for (int i = 0; i < n; ++i) {
-      if (::isnan(x[offset + i])) {
+      if (std::isnan(x[offset + i])) {
         return NA_REAL;
       }
 #define VALUE (x[offset + i] * weights[i])
@@ -419,7 +421,7 @@ struct max_f<false> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (::isnan(x[offset + i])) {
+      if (std::isnan(x[offset + i])) {
         return NA_REAL;
       }
 #define VALUE (x[offset + i] * weights[i])
@@ -434,7 +436,7 @@ struct max_f<false> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (::isnan(x[offset + i])) {
+      if (std::isnan(x[offset + i])) {
         return NA_REAL;
       }
       result = x[offset + i] < result ? result : x[offset + i];
@@ -452,7 +454,7 @@ struct max_f<true> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (::isnan(x[offset + i])) continue;
+      if (std::isnan(x[offset + i])) continue;
 #define VALUE (x[offset + i] * weights[i])
       result = VALUE < result ? result : VALUE;
 #undef VALUE
@@ -465,7 +467,7 @@ struct max_f<true> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (::isnan(x[offset + i])) continue;
+      if (std::isnan(x[offset + i])) continue;
       result = x[offset + i] < result ? result : x[offset + i];
     }
     return result;
@@ -481,7 +483,7 @@ struct prod_f<true> {
   inline double operator()(NumericVector const& x, int offset, int n) {
     double result = 1.0;
     for (int i = 0; i < n; ++i) {
-      if (!::isnan(x[offset + i])) {
+      if (!std::isnan(x[offset + i])) {
         result *= x[offset + i];
       }
     }
@@ -494,7 +496,7 @@ struct prod_f<true> {
                            int n) {
     double result = 1.0;
     for (int i = 0; i < n; ++i) {
-      if (!::isnan(x[offset + i])) {
+      if (!std::isnan(x[offset + i])) {
         result *= x[offset + i] * weights[i];
       }
     }
