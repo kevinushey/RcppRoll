@@ -101,9 +101,8 @@ T roll_vector_with(Callable f,
                    bool normalize) {
 
   // Normalize 'n' to match that of weights
-  if (weights.size()) {
+  if (weights.size())
     n = weights.size();
-  }
 
   if (normalize && weights.size())
     weights = weights / sum(weights) * n;

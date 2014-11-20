@@ -74,7 +74,7 @@ header <- trimLeft("
 ##'
 ##' @name RcppRoll-exports
 ##' @param x A numeric vector or a numeric matrix.
-##' @param n A window size.
+##' @param n The window size. Ignored when \\code{weights} is non-\\code{NULL}.
 ##' @param weights A vector of length \\code{n}, giving the weights for each
 ##'   element within a window. If \\code{NULL}, we take unit weights of width \\code{n}.
 ##' @param by Calculate at every \\code{by}-th point rather than every point.
@@ -91,7 +91,7 @@ NULL
 wrapper <- trimLeft("
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_%s <- function(x, n, weights = NULL, by = 1L,
+roll_%s <- function(x, n = 1L, weights = NULL, by = 1L,
   fill = numeric(0), partial = FALSE,
   align = c(\"center\", \"left\", \"right\"), normalize = TRUE, na.rm = FALSE) {
   return(.RcppRoll_%s(
@@ -109,7 +109,7 @@ roll_%s <- function(x, n, weights = NULL, by = 1L,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_%sr <- function(x, n, weights = NULL, by = 1L,
+roll_%sr <- function(x, n = 1L, weights = NULL, by = 1L,
   fill = NA, partial = FALSE, align = \"right\", normalize = TRUE, na.rm = FALSE) {
   return(.RcppRoll_%s(
     x,
@@ -126,7 +126,7 @@ roll_%sr <- function(x, n, weights = NULL, by = 1L,
 
 ##' @rdname RcppRoll-exports
 ##' @export
-roll_%sl <- function(x, n, weights = NULL, by = 1L,
+roll_%sl <- function(x, n = 1L, weights = NULL, by = 1L,
   fill = NA, partial = FALSE, align = \"left\", normalize = TRUE, na.rm = FALSE) {
   return(.RcppRoll_%s(
     x,
