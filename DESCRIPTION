@@ -1,22 +1,23 @@
 Package: RcppRoll
 Type: Package
-Title: Fast rolling functions through Rcpp and RcppArmadillo
-Version: 0.2.1
-Date: 2013-01-10
+Title: Efficient Rolling  / Windowed Operations
+Version: 0.2.2
+Date: 2015-04-04
 Author: Kevin Ushey
 Maintainer: Kevin Ushey <kevinushey@gmail.com>
-Description: RcppRoll supplies fast functions for 'roll'ing over vectors and
-    matrices, e.g. rolling means, medians and variances. It also provides the
-    utility functions 'rollit' and 'rollit_raw' as an interface for generating
-    your own C++ backed rolling functions.
+Description: Provides fast and efficient routines for
+    common rolling / windowed operations. Routines for the
+    efficient computation of windowed mean, median,
+    sum, product, minimum, maximum, standard deviation
+    and variance are provided.
 License: GPL (>= 2)
 Depends:
     R (>= 2.15.1)
 Suggests:
     zoo,
     microbenchmark,
-    testthat
-Imports:
-    Rcpp,
+    testthat,
     RcppArmadillo
-LinkingTo: Rcpp, RcppArmadillo
+Imports:
+    Rcpp
+LinkingTo: Rcpp

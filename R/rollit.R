@@ -100,83 +100,83 @@
 #'     )
 #'   }}
 #' @importFrom Rcpp sourceCpp
-rollit <- function( fun="x",
-                    vector=FALSE,
-                    const_vars=NULL,
-                    combine="+",
-                    final_trans=NULL,
-                    includes=NULL,
-                    depends=NULL,
-                    inline=TRUE,
-                    name=NULL,
-                    ... ) {
+rollit <- function(fun = "x",
+                   vector = FALSE,
+                   const_vars = NULL,
+                   combine = "+",
+                   final_trans = NULL,
+                   includes = NULL,
+                   depends = NULL,
+                   inline = TRUE,
+                   name = NULL,
+                   ...) {
 
-  require( RcppArmadillo )
+  .Deprecated()
 
   ## error checks
-  if( !is.null(const_vars) ) {
-    if( !is.list(const_vars) || is.list(const_vars) && is.null( names( const_vars ) ) ) {
+  if (!is.null(const_vars)) {
+    if (!is.list(const_vars) ||
+        is.list(const_vars) && is.null(names(const_vars))) {
       stop("'const_vars' must be a named list")
     }
   }
 
-  if( length( combine ) > 1 ||
-        !(combine %in% c("+", "-", "*", "/", "&", "|", "^", "<<", ">>") ) ) {
+  if (length(combine) > 1 ||
+      !(combine %in% c("+", "-", "*", "/", "&", "|", "^", "<<", ">>"))) {
     stop("combine must be one of '+', '-', '*', '/', '&', '|', '^', '<<', '>>'")
   }
 
   funky_regex <- "([^a-zA-Z_])(x)(?=[^x])|(\\Ax)|(x\\z)"
-  if( length( grep( funky_regex, fun, perl=TRUE ) ) < 1 ) {
+  if (length(grep(funky_regex, fun, perl = TRUE)) < 1) {
     stop("'fun' must be in terms of a variable 'x'")
   }
 
   ## random name if null
-  if( is.null(name) ) {
-    name <- paste( sep="", collapse="", c("z",
-                                          sample( c( letters, LETTERS, 0:9), size=20, replace=TRUE )
-    ) )
+  if (is.null(name)) {
+    random_string <- sample(c(letters, LETTERS, 0:9), 20, TRUE)
+    name <- paste(sep = "", collapse = "", c("z", random_string))
   }
 
   ## environment for cppSource generated files
   cpp_env <- new.env()
 
-  outFile <- paste( sep="", tempfile(), ".cpp" )
-  conn <- file( outFile, open="w" )
-  on.exit( close(conn) )
+  outFile <- paste(sep = "", tempfile(), ".cpp")
+  conn <- file(outFile, open = "w")
+  on.exit(close(conn))
 
   w <- function(...) {
-    cat( paste0(..., "\n"), file=conn)
+    cat(paste0(..., "\n"), file = conn)
   }
 
   w1 <- function(...) {
-    cat( paste0("\t", ..., "\n"), file=conn)
+    cat(paste0("\t", ..., "\n"), file = conn)
   }
 
   w2 <- function(...) {
-    cat( paste0("\t\t", ..., "\n"), file=conn)
+    cat(paste0("\t\t", ..., "\n"), file = conn)
   }
 
   w3 <- function(...) {
-    cat( paste0("\t\t\t", ..., "\n"), file=conn)
+    cat(paste0("\t\t\t", ..., "\n"), file = conn)
   }
 
   w4 <- function(...) {
-    cat( paste0("\t\t\t\t", ..., "\n"), file=conn)
+    cat(paste0("\t\t\t\t", ..., "\n"), file = conn)
   }
 
   ## depends
-  if( is.null(depends) ) {
+  if (is.null(depends)) {
     w("// [[Rcpp::depends(RcppArmadillo)]]")
   } else {
     w("// [[Rcpp::depends(RcppArmadillo, ",
-      paste( depends, collapse=", " ),
+      paste(depends, collapse = ", "),
       ")")
   }
 
   w("#include <RcppArmadillo.h>")
-  if( !is.null(includes) ) {
-    for( include in includes ) {
-      w( paste0("#include ", include ) )
+  if (!is.null(includes)) {
+    for (include in includes) {
+      w(paste0("#include ", include))
       w()
     }
   }
@@ -191,9 +191,9 @@ rollit <- function( fun="x",
 
   ## wrap the function provided by the user
 
-  if( inline) w("inline")
+  if (inline) w("inline")
   w("double ", name, "(NV& x, NV& weights, const int& n, const int& N, const int& ind) {")
-  if( combine %in% c("+", "-") ) {
+  if (combine %in% c("+", "-")) {
     w1("double out_ = 0;")
   } else {
     w1("double out_ = 1;")
@@ -201,21 +201,30 @@ rollit <- function( fun="x",
 
   ## constant variables
   ## be sure to parse any functions of x within the constant variables
-  if( !is.null(const_vars) ) {
-    for( i in seq_along(const_vars) ) {
-      tmp <- gsub( funky_regex, "\\1\\2\\3\\4\\5[ seq(ind, ind+n-1) ]", const_vars[i], perl=TRUE )
+  if (!is.null(const_vars)) {
+    for(i in seq_along(const_vars)) {
+      tmp <-
+        gsub(funky_regex, "\\1\\2\\3\\4\\5[ seq(ind, ind+n-1) ]", const_vars[i], perl =
+               TRUE)
       w1("const double ", names(const_vars)[i], " = ", tmp, ";")
     }
   }
 
 
   ## funky parser
-  (parsed_fun <- gsub( funky_regex, "\\1\\2\\3\\4\\5[i+ind]", fun, perl=TRUE ))
+  (parsed_fun <-
+     gsub(funky_regex, "\\1\\2\\3\\4\\5[i+ind]", fun, perl = TRUE))
 
   ## apply function as vector
-  if( vector ) {
-    w1("out_ = ", gsub( funky_regex, "\\1\\2\\3\\4\\5[ seq(ind, ind+n-1) ] * weights", fun, perl=TRUE ), ";")
-  } else { ## apply function elementwise
+  if (vector) {
+    w1(
+      "out_ = ", gsub(
+        funky_regex, "\\1\\2\\3\\4\\5[ seq(ind, ind+n-1) ] * weights", fun, perl =
+          TRUE
+      ), ";"
+    )
+  } else {
+    ## apply function elementwise
     w1("for( int i=0; i < n; i++ ) {")
     w2("if( weights[i] != 0 ) {")
     w3("out_ ", combine, "= weights[i] * ", parsed_fun, ";")
@@ -223,8 +232,8 @@ rollit <- function( fun="x",
     w1("}")
   }
 
-  if( !is.null( final_trans ) ) {
-    w1("out_ = ", gsub( funky_regex, "\\1out_", final_trans, perl=TRUE), ";" )
+  if (!is.null(final_trans)) {
+    w1("out_ = ", gsub(funky_regex, "\\1out_", final_trans, perl = TRUE), ";")
   }
   w1("return out_;")
   w("}")
@@ -232,7 +241,7 @@ rollit <- function( fun="x",
 
   ## numericvector call
   w("// [[Rcpp::export]]")
-  w("NumericVector ", name, "_numeric( NumericVector x, int n, NumericVector weights ) {" )
+  w("NumericVector ", name, "_numeric( NumericVector x, int n, NumericVector weights ) {")
   w1()
   w1("int len = x.size();")
   w1("int len_out = len - n + 1;")
@@ -253,7 +262,9 @@ rollit <- function( fun="x",
   ## function definition -- matrix
 
   w("// [[Rcpp::export]]")
-  w("NumericMatrix ", name, "_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {")
+  w(
+    "NumericMatrix ", name, "_matrix( NumericMatrix A, int n, bool by_column, NumericVector weights ) {"
+  )
   w1()
   w1("int nRow = A.nrow();")
   w1("int nCol = A.ncol();")
@@ -299,49 +310,49 @@ rollit <- function( fun="x",
 
   cat("C++ source file written to", outFile, ".\n")
   cat("Compiling...\n")
-  sourceCpp( outFile, env=cpp_env, ... )
+  sourceCpp(outFile, env = cpp_env, ...)
   cat("Done!\n")
 
-  return( function(x, n, by.column=TRUE, weights=rep(1,n), normalize=FALSE ) {
+  return(function(x, n, by.column = TRUE, weights = rep(1,n), normalize =
+                    FALSE) {
+    force(combine)
+    force(outFile)
 
-    force( combine )
-    force( outFile )
-
-    if( length(weights) != n ) {
+    if (length(weights) != n) {
       stop("length of weights must equal n")
     }
 
-    if( normalize ) {
+    if (normalize) {
       weights <- weights * length(weights) / sum(weights)
     }
 
-    if( is.matrix(x) ) {
-      if( n > nrow(x) ) {
+    if (is.matrix(x)) {
+      if (n > nrow(x)) {
         stop("n cannot be greater than nrow(x)")
       }
-      call <- call( paste( sep="", name, "_matrix" ),
-                    x,
-                    as.integer(n),
-                    as.logical(by.column),
-                    as.numeric(weights)
-                    )
-      return( eval( call, envir=cpp_env ) )
+      call <- call(
+        paste(sep = "", name, "_matrix"),
+        x,
+        as.integer(n),
+        as.logical(by.column),
+        as.numeric(weights)
+      )
+      return(eval(call, envir = cpp_env))
     }
 
-    if( is.vector(x) ) {
-      if( n > length(x) ) {
+    if (is.vector(x)) {
+      if (n > length(x)) {
         stop("n cannot be greater than length(x)")
       }
-      call <- call( paste( sep="", name, "_numeric" ),
-                    x,
-                    as.integer(n),
-                    as.numeric(weights)
-                    )
-      return( as.numeric( eval( call, envir=cpp_env ) ) )
+      call <- call(paste(sep = "", name, "_numeric"),
+                   x,
+                   as.integer(n),
+                   as.numeric(weights))
+      return(as.numeric(eval(call, envir = cpp_env)))
     }
 
     stop("the x supplied is neither a vector nor a matrix")
 
-  } )
+  })
 
 }

@@ -10,3 +10,4 @@ RcppRoll/src-x86_64
 RcppRoll/src-x64
 .DS_Store
 .*
+bin/

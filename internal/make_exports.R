@@ -70,7 +70,14 @@ header <- trimLeft("
 
 ##' RcppRoll
 ##'
-##' The following functions are provided directly by \\code{RcppRoll}.
+##' Efficient windowed / rolling operations. Each function
+##' here applies an operation over a moving window of
+##' size \\code{n}, with (customizable) weights specified
+##' through \\code{weights}.
+##'
+##' The functions postfixed with \\code{l} and \\code{r}
+##' are convenience wrappers that set \\strong{l}eft
+##' / \\strong{r}ight alignment of the windowed operations.
 ##'
 ##' @name RcppRoll-exports
 ##' @param x A numeric vector or a numeric matrix.
