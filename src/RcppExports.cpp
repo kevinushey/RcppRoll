@@ -5,6 +5,17 @@
 
 using namespace Rcpp;
 
+// na_locf
+NumericVector na_locf(NumericVector x);
+RcppExport SEXP RcppRoll_na_locf(SEXP xSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< NumericVector >::type x(xSEXP);
+    __result = Rcpp::wrap(na_locf(x));
+    return __result;
+END_RCPP
+}
 // roll_mean
 SEXP roll_mean(SEXP x, int n, NumericVector weights, int by, NumericVector fill_, bool partial, String align, bool normalize, bool na_rm);
 RcppExport SEXP RcppRoll_roll_mean(SEXP xSEXP, SEXP nSEXP, SEXP weightsSEXP, SEXP bySEXP, SEXP fill_SEXP, SEXP partialSEXP, SEXP alignSEXP, SEXP normalizeSEXP, SEXP na_rmSEXP) {

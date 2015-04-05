@@ -691,6 +691,25 @@ struct sd_f<true> {
 
 }  // end namespace RcppRoll
 
+// [[Rcpp::export]]
+NumericVector na_locf(NumericVector x)
+{
+  NumericVector output = Rcpp::clone(x);
+
+  double lastNonNA = NA_REAL;
+  int n = x.size();
+
+  for (int i = 0; i < n; ++i)
+  {
+    double value = output[i];
+    if (!ISNAN(value))
+      lastNonNA = value;
+    else
+      output[i] = lastNonNA;
+  }
+  return output;
+}
+
 // Begin auto-generated exports (internal/make_exports.R)
 
 // [[Rcpp::export(.RcppRoll_mean)]]
