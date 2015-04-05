@@ -67,13 +67,16 @@ test_that("we behave similarly to zoo::rollapply", {
                                fill = args$fill[[i]],
                                align = args$align[[i]],
                                na.rm = args$na.rm[[i]],
+                               by = args$by[[i]],
                                functions = f))
   }
 
   data <- matrix(rnorm(2E2, 100, 50), nrow = 100)
   for (i in 1:nrow(args)) {
-    run_tests(data, args$width[[i]], fill = args$fill[[i]], align = args$align[[i]],
-              functions = functions)
+    run_tests(
+      data, args$width[[i]], fill = args$fill[[i]], align = args$align[[i]], by = args$by[[i]],
+      functions = functions
+    )
   }
 
 })
