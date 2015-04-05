@@ -56,6 +56,7 @@ test_that("we behave similarly to zoo::rollapply", {
               fill = args$fill[[i]],
               align = args$align[[i]],
               na.rm = args$na.rm[[i]],
+              by = args$by[[i]],
               functions = f)
   }
 
