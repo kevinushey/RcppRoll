@@ -124,9 +124,8 @@ T roll_vector_with_fill(Callable f,
                    bool partial,
                    String const& align) {
 
-  if (x.size() < n) {
+  if (x.size() < n)
     return rep(T::get_na(), x.size());
-  }
 
   // figure out if we need to pad at the start, end, etc.
   int padLeftTimes  = getLeftPadding(fill, align, n);
@@ -137,32 +136,37 @@ T roll_vector_with_fill(Callable f,
   int output_n = padLeftTimes + ops_n + padRightTimes;
 
   T result;
-  if (by > 1) {
+  int i = 0;
+
+  if (by == 1) {
     result = static_cast<T>(no_init(output_n));
   } else {
     result = T(output_n, fill.middle());
   }
 
-  // pad left
-  for (int i = 0; i < padLeftTimes; ++i) {
+  // Pad left
+  for (; i < padLeftTimes; ++i)
     result[i] = fill.left();
-  }
 
-  // fill result
+  // Fill result -- we hoist the indexing variable outside of the loop
+  // so we can re-use it to easily figure out where our 'fill-right'
+  // pass-through should start
   if (weights.size()) {
-    for (int i = padLeftTimes; i < padLeftTimes + ops_n; i += by) {
+    for (; i < padLeftTimes + ops_n; i += by) {
       result[i] = f(x, i - padLeftTimes, weights, n);
     }
   } else {
-    for (int i = padLeftTimes; i < padLeftTimes + ops_n; i += by) {
+    for (; i < padLeftTimes + ops_n; i += by) {
       result[i] = f(x, i - padLeftTimes, n);
     }
   }
 
-  // pad right
-  for (int i = padLeftTimes + ops_n; i < padLeftTimes + ops_n + padRightTimes; ++i) {
+  // Fill-right on the remainders. We move the index
+  // back one 'by' iteration, then move it back one.
+  i -= by;
+  ++i;
+  for (; i < output_n; ++i)
     result[i] = fill.right();
-  }
 
   return result;
 }
