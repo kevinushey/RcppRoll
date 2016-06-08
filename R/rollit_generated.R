@@ -8,8 +8,8 @@
 ##' through \code{weights}.
 ##'
 ##' The functions postfixed with \code{l} and \code{r}
-##' are convenience wrappers that supply \strong{l}eft
-##' and \strong{r}ight alignment of the windowed operations.
+##' are convenience wrappers that set \strong{l}eft
+##' / \strong{r}ight alignment of the windowed operations.
 ##'
 ##' @name RcppRoll-exports
 ##' @param x A numeric vector or a numeric matrix.

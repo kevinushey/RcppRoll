@@ -45,7 +45,7 @@ has_flag <- function(content, flag) {
   any(grepl(flag, content, fixed = TRUE))
 }
 
-content <- readLines("src/rollit.cpp")
+content <- readLines("src/RcppRoll.cpp")
 begin_flag <- "// Begin auto-generated exports (internal/make_exports.R)"
 end_flag <- "// End auto-generated exports (internal/make_exports.R)"
 if (has_flag(content, begin_flag) && has_flag(content, end_flag)) {
