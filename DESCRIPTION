@@ -21,3 +21,4 @@ Suggests:
 Imports:
     Rcpp
 LinkingTo: Rcpp
+RoxygenNote: 5.0.1

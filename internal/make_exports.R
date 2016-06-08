@@ -62,7 +62,7 @@ output <- c(content,
             end_flag
 )
 
-cat(output, file = "src/rollit.cpp", sep = "\n")
+cat(output, file = "src/RcppRoll.cpp", sep = "\n")
 
 ## Generate R wrapper functions
 header <- trimLeft("
@@ -153,4 +153,4 @@ wrappers <- unlist(lapply(functions, function(x) {
   gsub("%s", x, wrapper, fixed = TRUE)
 }))
 
-cat(c(header, wrappers), file = "R/rollit_generated.R", sep = "\n")
+cat(c(header, wrappers), file = "R/RcppRoll.R", sep = "\n")
