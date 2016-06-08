@@ -173,33 +173,29 @@ T roll_vector_with_fill(Callable f,
 
 template <typename Callable, typename T>
 T roll_vector_with_nofill(Callable f,
-                   T const& x,
-                   int n,
-                   NumericVector& weights,
-                   int by,
-                   Fill const& fill,
-                   bool partial,
-                   String const& align) {
+                          T const& x,
+                          int n,
+                          NumericVector& weights,
+                          int by,
+                          Fill const& fill,
+                          bool partial,
+                          String const& align) {
 
   int x_n = x.size();
-  int ops_n = x_n - n + 1;
-  int output_n = ops_n;
+  int output_n = (x_n - n) / by + 1;
 
-  T result;
-  if (by > 1) {
-    result = static_cast<T>(no_init(output_n));
-  } else {
-    result = T(output_n, fill.middle());
-  }
+  T result = static_cast<T>(no_init(output_n));
 
-  // fill result
+  int index = 0;
   if (weights.size()) {
-    for (int i = 0; i < ops_n; i += by) {
-      result[i] = f(x, i, weights, n);
+    for (int i = 0; i < output_n; ++i) {
+      result[i] = f(x, index, weights, n);
+      index += by;
     }
   } else {
-    for (int i = 0; i < ops_n; i += by) {
-      result[i] = f(x, i, n);
+    for (int i = 0; i < output_n; ++i) {
+      result[i] = f(x, index, n);
+      index += by;
     }
   }
 

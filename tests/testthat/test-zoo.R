@@ -94,3 +94,12 @@ test_that("we don't segfault when window size > vector size on ops with fill", {
   )
 
 })
+
+test_that("we handle an empty fill properly", {
+  for (i in 10:100) {
+    data <- 1:i
+    lhs <- rollapply(data, 3, mean, by = 3)
+    rhs <- roll_mean(data, 3, by = 3, fill = numeric())
+    expect_identical(lhs, rhs)
+  }
+})
