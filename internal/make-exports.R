@@ -10,7 +10,7 @@ has_flag <- function(content, flag) {
   any(grepl(flag, content, fixed = TRUE))
 }
 
-content <- readLines("src/rollit.cpp")
+content <- readLines("src/RcppRoll.cpp")
 begin_flag <- "// Begin auto-generated exports (internal/make-exports.R)"
 end_flag <- "// End auto-generated exports (internal/make-exports.R)"
 if (has_flag(content, begin_flag) && has_flag(content, end_flag)) {
@@ -21,7 +21,7 @@ if (has_flag(content, begin_flag) && has_flag(content, end_flag)) {
 }
 
 output <- c(content, begin_flag, "", cpp_body, end_flag)
-cat(output, file = "src/rollit.cpp", sep = "\n")
+cat(output, file = "src/RcppRoll.cpp", sep = "\n")
 
 # Write R wrappers
 r_template_header <- readLines("internal/template-header.R")
@@ -31,4 +31,4 @@ r_body <- unlist(lapply(functions, function(x) {
   gsub("%s", x, r_template_body, fixed = TRUE)
 }))
 
-cat(c(r_template_header, r_body), file = "R/rollit-generated.R", sep = "\n")
+cat(c(r_template_header, r_body), file = "R/RcppRoll.R", sep = "\n")
