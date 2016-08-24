@@ -37,7 +37,7 @@ roll_mean <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  .RcppRoll_mean(
+  result <- .RcppRoll_mean(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -48,6 +48,8 @@ roll_mean <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -62,7 +64,7 @@ roll_meanr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_mean(
+  result <- .RcppRoll_mean(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -73,6 +75,8 @@ roll_meanr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -87,7 +91,7 @@ roll_meanl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_mean(
+  result <- .RcppRoll_mean(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -98,6 +102,8 @@ roll_meanl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -111,7 +117,7 @@ roll_median <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  .RcppRoll_median(
+  result <- .RcppRoll_median(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -122,6 +128,8 @@ roll_median <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -136,7 +144,7 @@ roll_medianr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_median(
+  result <- .RcppRoll_median(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -147,6 +155,8 @@ roll_medianr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -161,7 +171,7 @@ roll_medianl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_median(
+  result <- .RcppRoll_median(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -172,6 +182,8 @@ roll_medianl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -185,7 +197,7 @@ roll_min <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  .RcppRoll_min(
+  result <- .RcppRoll_min(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -196,6 +208,8 @@ roll_min <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -210,7 +224,7 @@ roll_minr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_min(
+  result <- .RcppRoll_min(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -221,6 +235,8 @@ roll_minr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -235,7 +251,7 @@ roll_minl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_min(
+  result <- .RcppRoll_min(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -246,6 +262,8 @@ roll_minl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -259,7 +277,7 @@ roll_max <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  .RcppRoll_max(
+  result <- .RcppRoll_max(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -270,6 +288,8 @@ roll_max <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -284,7 +304,7 @@ roll_maxr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_max(
+  result <- .RcppRoll_max(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -295,6 +315,8 @@ roll_maxr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -309,7 +331,7 @@ roll_maxl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_max(
+  result <- .RcppRoll_max(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -320,6 +342,8 @@ roll_maxl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -333,7 +357,7 @@ roll_prod <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  .RcppRoll_prod(
+  result <- .RcppRoll_prod(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -344,6 +368,8 @@ roll_prod <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -358,7 +384,7 @@ roll_prodr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_prod(
+  result <- .RcppRoll_prod(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -369,6 +395,8 @@ roll_prodr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -383,7 +411,7 @@ roll_prodl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_prod(
+  result <- .RcppRoll_prod(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -394,6 +422,8 @@ roll_prodl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -407,7 +437,7 @@ roll_sum <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  .RcppRoll_sum(
+  result <- .RcppRoll_sum(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -418,6 +448,8 @@ roll_sum <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -432,7 +464,7 @@ roll_sumr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_sum(
+  result <- .RcppRoll_sum(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -443,6 +475,8 @@ roll_sumr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -457,7 +491,7 @@ roll_suml <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_sum(
+  result <- .RcppRoll_sum(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -468,6 +502,8 @@ roll_suml <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -481,7 +517,7 @@ roll_sd <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  .RcppRoll_sd(
+  result <- .RcppRoll_sd(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -492,6 +528,8 @@ roll_sd <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -506,7 +544,7 @@ roll_sdr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_sd(
+  result <- .RcppRoll_sd(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -517,6 +555,8 @@ roll_sdr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -531,7 +571,7 @@ roll_sdl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_sd(
+  result <- .RcppRoll_sd(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -542,6 +582,8 @@ roll_sdl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -555,7 +597,7 @@ roll_var <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  .RcppRoll_var(
+  result <- .RcppRoll_var(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -566,6 +608,8 @@ roll_var <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -580,7 +624,7 @@ roll_varr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_var(
+  result <- .RcppRoll_var(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -591,6 +635,8 @@ roll_varr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -605,7 +651,7 @@ roll_varl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  .RcppRoll_var(
+  result <- .RcppRoll_var(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -616,4 +662,6 @@ roll_varl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
+  colnames(result) <- colnames(x)
+  result
 }
