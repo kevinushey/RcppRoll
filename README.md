@@ -1,14 +1,9 @@
 RcppRoll
 =====
 
-This package provides an interface for commonly-used math and statistical 
-functions as 'rollers', and also provides a utility function, 'rollit', 
-for generating your own fast, C++ backed rollers.
+This package provides windowed-versions of commonly-used mathematical
+and statistical functions.
 
 Install me with devtools:
 
     install_github("kevinushey/RcppRoll")
-
-and check some examples with
-
-    example(rollit)
