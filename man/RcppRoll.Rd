@@ -22,7 +22,3 @@ Currently, the exported functions are:
  \item{\code{\link{roll_var}}}
  }
 }
-\seealso{
-\code{\link{rollit}} for 'roll'-ing your own custom functions.
-}
-

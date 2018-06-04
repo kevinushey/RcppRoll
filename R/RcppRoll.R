@@ -37,7 +37,7 @@ roll_mean <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  result <- .RcppRoll_mean(
+  result <- roll_mean_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -64,7 +64,7 @@ roll_meanr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_mean(
+  result <- roll_mean_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -91,7 +91,7 @@ roll_meanl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_mean(
+  result <- roll_mean_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -117,7 +117,7 @@ roll_median <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  result <- .RcppRoll_median(
+  result <- roll_median_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -144,7 +144,7 @@ roll_medianr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_median(
+  result <- roll_median_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -171,7 +171,7 @@ roll_medianl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_median(
+  result <- roll_median_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -197,7 +197,7 @@ roll_min <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  result <- .RcppRoll_min(
+  result <- roll_min_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -224,7 +224,7 @@ roll_minr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_min(
+  result <- roll_min_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -251,7 +251,7 @@ roll_minl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_min(
+  result <- roll_min_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -277,7 +277,7 @@ roll_max <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  result <- .RcppRoll_max(
+  result <- roll_max_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -304,7 +304,7 @@ roll_maxr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_max(
+  result <- roll_max_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -331,7 +331,7 @@ roll_maxl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_max(
+  result <- roll_max_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -357,7 +357,7 @@ roll_prod <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  result <- .RcppRoll_prod(
+  result <- roll_prod_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -384,7 +384,7 @@ roll_prodr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_prod(
+  result <- roll_prod_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -411,7 +411,7 @@ roll_prodl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_prod(
+  result <- roll_prod_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -437,7 +437,7 @@ roll_sum <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  result <- .RcppRoll_sum(
+  result <- roll_sum_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -464,7 +464,7 @@ roll_sumr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_sum(
+  result <- roll_sum_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -491,7 +491,7 @@ roll_suml <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_sum(
+  result <- roll_sum_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -517,7 +517,7 @@ roll_sd <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  result <- .RcppRoll_sd(
+  result <- roll_sd_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -544,7 +544,7 @@ roll_sdr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_sd(
+  result <- roll_sd_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -571,7 +571,7 @@ roll_sdl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_sd(
+  result <- roll_sd_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -597,7 +597,7 @@ roll_var <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  result <- .RcppRoll_var(
+  result <- roll_var_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -624,7 +624,7 @@ roll_varr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_var(
+  result <- roll_var_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -651,7 +651,7 @@ roll_varl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_var(
+  result <- roll_var_impl(
     x,
     as.integer(n),
     as.numeric(weights),

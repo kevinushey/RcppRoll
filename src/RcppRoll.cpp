@@ -105,7 +105,7 @@ T roll_vector_with(Callable f,
     n = weights.size();
 
   if (normalize && weights.size())
-    weights = weights / sum(weights) * n;
+    weights = Rcpp::clone(NumericVector(weights / sum(weights) * n));
 
   return fill.filled() ?
     roll_vector_with_fill(f, x, n, weights, by, fill, partial, align) :
@@ -708,8 +708,8 @@ NumericVector na_locf(NumericVector x)
 
 // Begin auto-generated exports (internal/make-exports.R)
 
-// [[Rcpp::export(.RcppRoll_mean)]]
-SEXP roll_mean(SEXP x,
+// [[Rcpp::export]]
+SEXP roll_mean_impl(SEXP x,
              int n,
              NumericVector weights,
              int by,
@@ -738,8 +738,8 @@ SEXP roll_mean(SEXP x,
     }
   }
 }
-// [[Rcpp::export(.RcppRoll_median)]]
-SEXP roll_median(SEXP x,
+// [[Rcpp::export]]
+SEXP roll_median_impl(SEXP x,
              int n,
              NumericVector weights,
              int by,
@@ -768,8 +768,8 @@ SEXP roll_median(SEXP x,
     }
   }
 }
-// [[Rcpp::export(.RcppRoll_min)]]
-SEXP roll_min(SEXP x,
+// [[Rcpp::export]]
+SEXP roll_min_impl(SEXP x,
              int n,
              NumericVector weights,
              int by,
@@ -798,8 +798,8 @@ SEXP roll_min(SEXP x,
     }
   }
 }
-// [[Rcpp::export(.RcppRoll_max)]]
-SEXP roll_max(SEXP x,
+// [[Rcpp::export]]
+SEXP roll_max_impl(SEXP x,
              int n,
              NumericVector weights,
              int by,
@@ -828,8 +828,8 @@ SEXP roll_max(SEXP x,
     }
   }
 }
-// [[Rcpp::export(.RcppRoll_prod)]]
-SEXP roll_prod(SEXP x,
+// [[Rcpp::export]]
+SEXP roll_prod_impl(SEXP x,
              int n,
              NumericVector weights,
              int by,
@@ -858,8 +858,8 @@ SEXP roll_prod(SEXP x,
     }
   }
 }
-// [[Rcpp::export(.RcppRoll_sum)]]
-SEXP roll_sum(SEXP x,
+// [[Rcpp::export]]
+SEXP roll_sum_impl(SEXP x,
              int n,
              NumericVector weights,
              int by,
@@ -888,8 +888,8 @@ SEXP roll_sum(SEXP x,
     }
   }
 }
-// [[Rcpp::export(.RcppRoll_sd)]]
-SEXP roll_sd(SEXP x,
+// [[Rcpp::export]]
+SEXP roll_sd_impl(SEXP x,
              int n,
              NumericVector weights,
              int by,
@@ -918,8 +918,8 @@ SEXP roll_sd(SEXP x,
     }
   }
 }
-// [[Rcpp::export(.RcppRoll_var)]]
-SEXP roll_var(SEXP x,
+// [[Rcpp::export]]
+SEXP roll_var_impl(SEXP x,
              int n,
              NumericVector weights,
              int by,

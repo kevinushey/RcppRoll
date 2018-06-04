@@ -1,5 +1,5 @@
-// [[Rcpp::export(.RcppRoll_%s)]]
-SEXP roll_%s(SEXP x,
+// [[Rcpp::export]]
+SEXP roll_%s_impl(SEXP x,
              int n,
              NumericVector weights,
              int by,

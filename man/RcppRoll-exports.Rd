@@ -2,30 +2,30 @@
 % Please edit documentation in R/RcppRoll.R
 \name{RcppRoll-exports}
 \alias{RcppRoll-exports}
-\alias{roll_max}
-\alias{roll_maxl}
-\alias{roll_maxr}
 \alias{roll_mean}
-\alias{roll_meanl}
 \alias{roll_meanr}
+\alias{roll_meanl}
 \alias{roll_median}
-\alias{roll_medianl}
 \alias{roll_medianr}
+\alias{roll_medianl}
 \alias{roll_min}
-\alias{roll_minl}
 \alias{roll_minr}
+\alias{roll_minl}
+\alias{roll_max}
+\alias{roll_maxr}
+\alias{roll_maxl}
 \alias{roll_prod}
-\alias{roll_prodl}
 \alias{roll_prodr}
-\alias{roll_sd}
-\alias{roll_sdl}
-\alias{roll_sdr}
+\alias{roll_prodl}
 \alias{roll_sum}
-\alias{roll_suml}
 \alias{roll_sumr}
+\alias{roll_suml}
+\alias{roll_sd}
+\alias{roll_sdr}
+\alias{roll_sdl}
 \alias{roll_var}
-\alias{roll_varl}
 \alias{roll_varr}
+\alias{roll_varl}
 \title{RcppRoll}
 \usage{
 roll_mean(x, n = 1L, weights = NULL, by = 1L, fill = numeric(0),
@@ -141,4 +141,3 @@ The functions postfixed with \code{l} and \code{r}
 are convenience wrappers that set \strong{l}eft
 / \strong{r}ight alignment of the windowed operations.
 }
-

@@ -10,7 +10,7 @@ roll_%s <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  result <- .RcppRoll_%s(
+  result <- roll_%s_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -37,7 +37,7 @@ roll_%sr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_%s(
+  result <- roll_%s_impl(
     x,
     as.integer(n),
     as.numeric(weights),
@@ -64,7 +64,7 @@ roll_%sl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  result <- .RcppRoll_%s(
+  result <- roll_%s_impl(
     x,
     as.integer(n),
     as.numeric(weights),
