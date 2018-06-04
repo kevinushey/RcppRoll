@@ -22,7 +22,7 @@
 #' @param partial Partial application? Currently unimplemented.
 #' @param align Align windows on the \code{"left"}, \code{"middle"} or
 #'   \code{"right"}.
-#' @param normalize Normalize window weights, such that they sum to \code{n}.
+#' @param normalize Default is \code{TRUE}. Normalize window weights, such that they sum to \code{n=length(weights)}. 
 #' @param na.rm Remove missing values?
 NULL
 #' @rdname RcppRoll-exports
