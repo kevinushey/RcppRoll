@@ -37,6 +37,11 @@ roll_mean <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_mean_impl(
     x,
     as.integer(n),
@@ -64,6 +69,11 @@ roll_meanr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_mean_impl(
     x,
     as.integer(n),
@@ -91,6 +101,11 @@ roll_meanl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_mean_impl(
     x,
     as.integer(n),
@@ -117,6 +132,11 @@ roll_median <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_median_impl(
     x,
     as.integer(n),
@@ -144,6 +164,11 @@ roll_medianr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_median_impl(
     x,
     as.integer(n),
@@ -171,6 +196,11 @@ roll_medianl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_median_impl(
     x,
     as.integer(n),
@@ -197,6 +227,11 @@ roll_min <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_min_impl(
     x,
     as.integer(n),
@@ -224,6 +259,11 @@ roll_minr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_min_impl(
     x,
     as.integer(n),
@@ -251,6 +291,11 @@ roll_minl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_min_impl(
     x,
     as.integer(n),
@@ -277,6 +322,11 @@ roll_max <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_max_impl(
     x,
     as.integer(n),
@@ -304,6 +354,11 @@ roll_maxr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_max_impl(
     x,
     as.integer(n),
@@ -331,6 +386,11 @@ roll_maxl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_max_impl(
     x,
     as.integer(n),
@@ -357,6 +417,11 @@ roll_prod <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_prod_impl(
     x,
     as.integer(n),
@@ -384,6 +449,11 @@ roll_prodr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_prod_impl(
     x,
     as.integer(n),
@@ -411,6 +481,11 @@ roll_prodl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_prod_impl(
     x,
     as.integer(n),
@@ -437,6 +512,11 @@ roll_sum <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_sum_impl(
     x,
     as.integer(n),
@@ -464,6 +544,11 @@ roll_sumr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_sum_impl(
     x,
     as.integer(n),
@@ -491,6 +576,11 @@ roll_suml <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_sum_impl(
     x,
     as.integer(n),
@@ -517,6 +607,11 @@ roll_sd <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_sd_impl(
     x,
     as.integer(n),
@@ -544,6 +639,11 @@ roll_sdr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_sd_impl(
     x,
     as.integer(n),
@@ -571,6 +671,11 @@ roll_sdl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_sd_impl(
     x,
     as.integer(n),
@@ -597,6 +702,11 @@ roll_var <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_var_impl(
     x,
     as.integer(n),
@@ -624,6 +734,11 @@ roll_varr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_var_impl(
     x,
     as.integer(n),
@@ -651,6 +766,11 @@ roll_varl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_var_impl(
     x,
     as.integer(n),

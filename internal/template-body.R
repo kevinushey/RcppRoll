@@ -10,6 +10,11 @@ roll_%s <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_%s_impl(
     x,
     as.integer(n),
@@ -37,6 +42,11 @@ roll_%sr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_%s_impl(
     x,
     as.integer(n),
@@ -64,6 +74,11 @@ roll_%sl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
+  if (!identical(partial, FALSE)) {
+    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
+    partial <- FALSE
+  }
+
   result <- roll_%s_impl(
     x,
     as.integer(n),
