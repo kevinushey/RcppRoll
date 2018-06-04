@@ -99,14 +99,25 @@ T roll_vector_with(Callable f,
                    bool partial,
                    String const& align,
                    bool normalize) {
+  
+  
+  
 
-  // Normalize 'n' to match that of weights
-  if (weights.size())
-    n = weights.size();
-
-  if (normalize && weights.size())
-    weights = weights / sum(weights) * n;
-
+  if (normalize && weights.size()){
+    // Normalize 'n' to match that of weights
+    if (weights.size()){
+      n = weights.size();
+    }
+    
+    //Create a local copy of the weight vectors
+    NumericVector weights_normalized = weights / sum(weights) * n;
+    
+    return fill.filled() ?
+    roll_vector_with_fill(f, x, n, weights_normalized, by, fill, partial, align) :
+    roll_vector_with_nofill(f, x, n, weights_normalized, by, fill, partial, align)
+  ;
+  }
+  
   return fill.filled() ?
     roll_vector_with_fill(f, x, n, weights, by, fill, partial, align) :
     roll_vector_with_nofill(f, x, n, weights, by, fill, partial, align)
