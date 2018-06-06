@@ -1,4 +1,8 @@
-library(testthat)
-library(RcppRoll)
+if (requireNamespace("testthat", quietly = TRUE)) {
 
-test_check("RcppRoll")
+  library(testthat)
+  library(RcppRoll)
+
+  test_check("RcppRoll")
+
+}

@@ -1,8 +1,8 @@
 Package: RcppRoll
 Type: Package
 Title: Efficient Rolling  / Windowed Operations
-Version: 0.2.3
-Date: 2015-04-04
+Version: 0.3.0
+Date: 2018-06-05
 Author: Kevin Ushey
 Maintainer: Kevin Ushey <kevinushey@gmail.com>
 Description: Provides fast and efficient routines for
@@ -15,9 +15,7 @@ Depends:
     R (>= 2.15.1)
 Suggests:
     zoo,
-    microbenchmark,
-    testthat,
-    RcppArmadillo
+    testthat
 Imports:
     Rcpp
 LinkingTo: Rcpp

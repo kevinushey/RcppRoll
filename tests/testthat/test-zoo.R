@@ -2,6 +2,9 @@ context("zoo")
 
 test_that("we behave similarly to zoo::rollapply", {
 
+  if (!requireNamespace("zoo", quietly = TRUE))
+    skip("zoo not installed")
+
   library(testthat)
 
   functions <- c("mean", "median", "prod", "min", "max", "sum")
@@ -96,6 +99,10 @@ test_that("we don't segfault when window size > vector size on ops with fill", {
 })
 
 test_that("we handle an empty fill properly", {
+
+  if (!requireNamespace("zoo", quietly = TRUE))
+    skip("zoo not installed")
+
   for (i in 10:100) {
     data <- 1:i
     lhs <- zoo::rollapply(data, 3, mean, by = 3)

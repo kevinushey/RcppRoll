@@ -123,7 +123,7 @@ length 3 giving left, middle and right fills.}
 
 \item{partial}{Partial application? Currently unimplemented.}
 
-\item{align}{Align windows on the \code{"left"}, \code{"middle"} or
+\item{align}{Align windows on the \code{"left"}, \code{"center"} or
 \code{"right"}.}
 
 \item{normalize}{Normalize window weights, such that they sum to \code{n}.}
