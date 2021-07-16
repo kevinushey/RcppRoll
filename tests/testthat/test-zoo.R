@@ -51,7 +51,6 @@ test_that("we behave similarly to zoo::rollapply", {
   )
 
   # don't use median here
-  f <- setdiff(functions, 'median')
   data <- rnorm(1E2, 100, 50)
   for (i in 1:nrow(args)) {
     run_tests(data,
@@ -60,7 +59,7 @@ test_that("we behave similarly to zoo::rollapply", {
               align = args$align[[i]],
               na.rm = args$na.rm[[i]],
               by = args$by[[i]],
-              functions = f)
+              functions = functions)
   }
 
   data[sample(length(data), length(data) / 3)] <- NA
@@ -71,13 +70,16 @@ test_that("we behave similarly to zoo::rollapply", {
                                align = args$align[[i]],
                                na.rm = args$na.rm[[i]],
                                by = args$by[[i]],
-                               functions = f))
+                               functions = functions))
   }
 
   data <- matrix(rnorm(2E2, 100, 50), nrow = 100)
   for (i in 1:nrow(args)) {
     run_tests(
-      data, args$width[[i]], fill = args$fill[[i]], align = args$align[[i]], by = args$by[[i]],
+      data, args$width[[i]],
+      fill = args$fill[[i]],
+      align = args$align[[i]],
+      by = args$by[[i]],
       functions = functions
     )
   }

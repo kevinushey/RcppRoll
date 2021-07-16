@@ -532,6 +532,10 @@ struct median_f<false> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
 
+    for (int i = offset; i < offset + n; i++)
+      if (ISNAN(x[i]))
+        return NA_REAL;
+
     std::vector<double> copied(n / 2 + 1);
 
     std::partial_sort_copy(
@@ -553,6 +557,10 @@ struct median_f<false> {
                            int offset,
                            NumericVector& weights,
                            int n) {
+
+    for (int i = offset; i < offset + n; i++)
+      if (ISNAN(x[i]))
+        return NA_REAL;
 
     NumericVector copy(x.begin() + offset, x.begin() + offset + n);
     std::sort(copy.begin(), copy.end());
@@ -577,13 +585,17 @@ struct median_f<true> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
 
+    std::vector<double> data;
+    for (int i = offset; i < offset + n; i++)
+      if (!ISNAN(x[i]))
+        data.push_back(x[i]);
+
+    n = data.size();
     std::vector<double> copied(n / 2 + 1);
 
     std::partial_sort_copy(
-      x.begin() + offset,
-      x.begin() + offset + n,
-      copied.begin(),
-      copied.begin() + n / 2 + 1
+      data.begin(),   data.end(),
+      copied.begin(), copied.end()
     );
 
     if (n % 2 == 0) {

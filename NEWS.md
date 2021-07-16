@@ -1,3 +1,9 @@
+
+# RcppRoll 0.3.1  (UNRELEASED)
+
+- Fixed an issue where `roll_median()` produced incorrect results in the
+  presence of NAs. (#42)
+
 # RcppRoll 0.3.0
 
 - Properly document the `align` argument -- the function accepts
