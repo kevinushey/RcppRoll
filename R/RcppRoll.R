@@ -18,7 +18,7 @@
 #'   element within a window. If \code{NULL}, we take unit weights of width \code{n}.
 #' @param by Calculate at every \code{by}-th point rather than every point.
 #' @param fill Either an empty vector (no fill), or a vector (recycled to)
-#'   length 3 giving left, middle and right fills.
+#'   length 3 giving left, center and right fills.
 #' @param partial Partial application? Currently unimplemented.
 #' @param align Align windows on the \code{"left"}, \code{"center"} or
 #'   \code{"right"}.
