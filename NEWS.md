@@ -1,4 +1,6 @@
 
+# RcppRoll 0.3.1  (UNRELEASED)
+
 # RcppRoll 0.3.1
 
 - Fixed an issue where `roll_median()` produced incorrect results in the

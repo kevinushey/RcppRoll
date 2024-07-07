@@ -1,7 +1,7 @@
 Package: RcppRoll
 Type: Package
 Title: Efficient Rolling  / Windowed Operations
-Version: 0.3.1
+Version: 0.3.1.9000
 Author: Kevin Ushey
 Maintainer: Kevin Ushey <kevinushey@gmail.com>
 Description: Provides fast and efficient routines for
