@@ -21,7 +21,12 @@ test_that("we behave similarly to zoo::rollapply", {
       if (gctorture) gctorture(TRUE)
       RcppRollRes <- RcppRoll(data, width, ...)
       if (gctorture) gctorture(FALSE)
-      expect_equal(RcppRollRes, zoo)
+      withCallingHandlers(
+        expect_equal(RcppRollRes, zoo),
+        error = function(cnd) {
+          str(list(fn = f, data = data, width = width, ...))
+        }
+      )
     }
   }
 
@@ -111,4 +116,14 @@ test_that("we handle an empty fill properly", {
     rhs <- roll_mean(data, 3, by = 3, fill = numeric())
     expect_identical(lhs, rhs)
   }
+})
+
+test_that("median handles NAs appropriately", {
+
+  y <- c(NA, 1:3, NA)
+  expect_equal(
+    roll_median(y, n = 3L, na.rm = TRUE),
+    c(1.5, 2.0, 2.5)
+  )
+
 })

@@ -591,6 +591,9 @@ struct median_f<true> {
         data.push_back(x[i]);
 
     n = data.size();
+    if (n == 0)
+      return NA_REAL;
+
     std::vector<double> copied(n / 2 + 1);
 
     std::partial_sort_copy(
