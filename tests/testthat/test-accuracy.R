@@ -97,6 +97,22 @@ test_that("a total that overflows recovers once the culprits leave", {
 
 })
 
+test_that("a NaN keeps its identity through a sum, an NA likewise", {
+
+  # the incremental path counts its missing values rather than adding them
+  # up, so the counting has to preserve the distinction the arithmetic did
+  for (n in c(10L, 48L)) {
+    x <- c(NaN, rnorm(100))
+    expect_true(is.nan(roll_sum(x, n)[1]))
+    expect_true(is.nan(roll_mean(x, n)[1]))
+
+    x <- c(NA, rnorm(100))
+    expect_true(is.na(roll_sum(x, n)[1]) && !is.nan(roll_sum(x, n)[1]))
+    expect_true(is.na(roll_mean(x, n)[1]) && !is.nan(roll_mean(x, n)[1]))
+  }
+
+})
+
 test_that("min and max agree with base R on the sign of a zero", {
 
   x <- c(0, -0, 1, -0, 0)

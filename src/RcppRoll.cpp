@@ -298,12 +298,13 @@ public:
 
   void clear() {
     total_.clear();
-    n_finite_ = n_na_ = n_pos_inf_ = n_neg_inf_ = 0;
+    n_finite_ = n_na_ = n_nan_ = n_pos_inf_ = n_neg_inf_ = 0;
   }
 
   void add(int i) {
     double value = this->x_[i];
-    if (ISNAN(value)) ++n_na_;
+    if (ISNA(value)) ++n_na_;
+    else if (ISNAN(value)) ++n_nan_;
     else if (value == R_PosInf) ++n_pos_inf_;
     else if (value == R_NegInf) ++n_neg_inf_;
     else { total_.add(value); ++n_finite_; }
@@ -311,7 +312,8 @@ public:
 
   void remove(int i) {
     double value = this->x_[i];
-    if (ISNAN(value)) --n_na_;
+    if (ISNA(value)) --n_na_;
+    else if (ISNAN(value)) --n_nan_;
     else if (value == R_PosInf) --n_pos_inf_;
     else if (value == R_NegInf) --n_neg_inf_;
     else { total_.remove(value); --n_finite_; }
@@ -319,8 +321,11 @@ public:
 
   double value() const {
 
-    if (!NA_RM && n_na_)
-      return NA_REAL;
+    // NA and NaN are counted apart so that each keeps its identity, as it
+    // did when the values were simply added up; a window holding both kinds
+    // reports NA, where summation order used to decide
+    if (!NA_RM && (n_na_ || n_nan_))
+      return n_na_ ? NA_REAL : R_NaN;
 
     double result;
     if (n_pos_inf_ && n_neg_inf_) result = R_NaN;
@@ -341,6 +346,7 @@ private:
   CompensatedSum total_;
   int n_finite_;
   int n_na_;
+  int n_nan_;
   int n_pos_inf_;
   int n_neg_inf_;
 
