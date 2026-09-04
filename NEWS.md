@@ -1,6 +1,17 @@
 
 # RcppRoll 0.3.1  (UNRELEASED)
 
+- `roll_median()` now keeps large windows in a pair of heaps meeting at the
+  median, so that sliding costs O(log n) per point rather than O(n). Windows
+  below about two hundred observations keep the sorted-window representation,
+  which remains faster there.
+
+- `roll_prod()` now slides its window incrementally rather than recomputing
+  each window in full, so its cost no longer grows with the window size. The
+  window is carried as two stacks of partial products -- departing values are
+  never divided out, so zeros, infinities and rounding behave as a fresh
+  multiplication would.
+
 - The rolling window computations are now parallelized with OpenMP, where
   support for it is available. By default, the number of threads is chosen
   by the OpenMP runtime (e.g. via `OMP_NUM_THREADS`); it can be set
