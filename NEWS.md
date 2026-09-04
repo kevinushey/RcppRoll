@@ -1,6 +1,12 @@
 
 # RcppRoll 0.3.1  (UNRELEASED)
 
+- The window loops that dominate small-window calls have been rewritten
+  branchlessly where measurement showed a win, with bit-identical results:
+  `roll_sum()` and `roll_mean()` with `na.rm = TRUE` run 1.4-2.5x faster,
+  `roll_max()` with `na.rm = TRUE` 1.4-1.8x faster, and the weighted
+  `roll_median()` about 1.8x faster.
+
 - Matrices whose columns are too short to split into chunks are now
   parallelized across their columns instead, so wide matrices benefit from
   OpenMP too. As before, results are identical whatever the number of

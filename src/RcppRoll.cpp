@@ -1091,10 +1091,13 @@ struct mean_f<true> {
     double result = 0.0;
     int num = 0;
     for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result += x[offset + i];
-        ++num;
-      }
+      double value = x[offset + i];
+      bool ok = !is_nan(value);
+      // A select rather than a branch, so the loop is straight-line code.
+      // Masked-out values add -0.0, the one addend that leaves every total
+      // alone -- adding +0.0 would flip an all-negative-zero total's sign.
+      result += ok ? value : -0.0;
+      num += ok;
     }
     return result / num;
   }
@@ -1108,10 +1111,11 @@ struct mean_f<true> {
     double result = 0.0;
     double weights_sum = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result += x[offset + i] * weights[i];
-        weights_sum += weights[i];
-      }
+      double value = x[offset + i];
+      bool ok = !is_nan(value);
+      // as above, -0.0 so that a masked-out addend changes no total
+      result += ok ? value * weights[i] : -0.0;
+      weights_sum += ok ? weights[i] : -0.0;
     }
     return result / weights_sum;
   }
@@ -1172,9 +1176,10 @@ struct sum_f<true> {
   inline double operator()(double const* x, int offset, int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result += x[offset + i];
-      }
+      double value = x[offset + i];
+      // as for the mean: a select keeps the loop straight-line, and -0.0 is
+      // the addend that leaves every total alone
+      result += !is_nan(value) ? value : -0.0;
     }
     return result;
   }
@@ -1185,9 +1190,8 @@ struct sum_f<true> {
                            int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result += x[offset + i] * weights[i];
-      }
+      double value = x[offset + i];
+      result += !is_nan(value) ? value * weights[i] : -0.0;
     }
     return result;
   }
@@ -1302,10 +1306,12 @@ struct max_f<true> {
                            double const* weights,
                            int n) {
     double result = R_NegInf;
+    // '>=' rather than the inverted '<', so that a NaN loses the comparison
+    // and skips itself while a tie still takes the later value -- max has
+    // always kept the later of two equal values, signed zeros included
     for (int i = 0; i < n; ++i) {
-      if (is_nan(x[offset + i])) continue;
 #define VALUE (x[offset + i] * weights[i])
-      result = VALUE < result ? result : VALUE;
+      result = VALUE >= result ? VALUE : result;
 #undef VALUE
     }
     return result;
@@ -1316,8 +1322,8 @@ struct max_f<true> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (is_nan(x[offset + i])) continue;
-      result = x[offset + i] < result ? result : x[offset + i];
+      double value = x[offset + i];
+      result = value >= result ? value : result;
     }
     return result;
   }
@@ -1476,9 +1482,14 @@ inline double weighted_median(double const* x,
       ? (b < c ? b : (a < c ? c : a))
       : (a < c ? a : (b < c ? c : b));
 
-    // split off the values below and above the pivot at the two ends of the
+    // Split off the values below and above the pivot at the two ends of the
     // other buffer, keeping the pivot's run whole so that repeated values
-    // cannot stall the descent
+    // cannot stall the descent. Which side a value lands on is a coin flip no
+    // branch predictor can learn, so the split is branchless: every element
+    // is written to both frontiers, and only the matching side's counter --
+    // and weight -- moves. A slot past its counter holds a stale copy that
+    // the next committed write overwrites, and the span left between the two
+    // frontiers is never read.
     size_t n_lt = 0;
     size_t n_gt = 0;
     double weight_lt = 0.0;
@@ -1486,14 +1497,15 @@ inline double weighted_median(double const* x,
 
     for (size_t i = 0; i < size; ++i) {
       double value = from[i].first;
-      if (value < pivot) {
-        weight_lt += from[i].second;
-        into[n_lt++] = from[i];
-      } else if (pivot < value) {
-        into[size - (++n_gt)] = from[i];
-      } else {
-        weight_eq += from[i].second;
-      }
+      double weight = from[i].second;
+      bool lt = value < pivot;
+      bool gt = pivot < value;
+      into[n_lt] = from[i];
+      into[size - 1 - n_gt] = from[i];
+      n_lt += lt;
+      n_gt += gt;
+      weight_lt += lt ? weight : 0.0;
+      weight_eq += (lt | gt) ? 0.0 : weight;
     }
 
     // Descend into whichever part the cumulative weight crosses half within,
