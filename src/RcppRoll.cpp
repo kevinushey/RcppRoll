@@ -1325,7 +1325,7 @@ void roll_partial_windows(Callable f,
                           int leftOffset,
                           int rightOffset) {
 
-  Accumulator accumulator(f, x, n);
+  Accumulator accumulator(f, x, n < x_n ? n : x_n);
 
   for (int i = 0; i < x_n; i += by) {
     int start = i - leftOffset;
@@ -1371,6 +1371,12 @@ void roll_vector_partial_into(Callable f,
 
   int leftOffset  = getLeftOffset(align, n);
   int rightOffset = getRightOffset(align, n);
+
+  // a window wider than the data is clipped to it on both sides, so cap what
+  // a window can reach -- and, below, what an accumulator reserves for one --
+  // rather than letting an outsized 'n' drive either
+  if (leftOffset > x_n - 1) leftOffset = x_n - 1;
+  if (rightOffset > x_n - 1) rightOffset = x_n - 1;
 
   // points we skip over are not computed, and 'fill' does not apply here
   if (by != 1)
