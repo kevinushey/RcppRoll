@@ -256,7 +256,7 @@ public:
     : f_(f), x_(x) {}
 
   // an operation with no incremental form always reads the window afresh
-  static bool worthwhile(int) { return false; }
+  static bool worthwhile(int, int) { return false; }
 
   double compute(int start, int end) {
     return f_(x_, start, end - start + 1);
@@ -285,8 +285,12 @@ public:
     clear();
   }
 
-  // one add and one subtract, against a window the compiler can vectorize
-  static bool worthwhile(int n) { return n >= 48; }
+  // One add and one subtract per observation entering or leaving, against a
+  // window the compiler can vectorize. Each step slides the window 'by'
+  // observations, so the crossover scales with 'by' -- and a 'by' past the
+  // crossover includes every 'by' wide enough to leave gaps, where there is
+  // nothing to carry forward at all.
+  static bool worthwhile(int n, int by) { return n >= 48LL * by; }
 
   bool degraded() const { return total_.degraded(); }
 
@@ -359,8 +363,8 @@ public:
   }
 
   // two running sums against two passes over the window, so this pays off
-  // sooner than a plain total does
-  static bool worthwhile(int n) { return n >= 12; }
+  // sooner than a plain total does; as above, the crossover scales with 'by'
+  static bool worthwhile(int n, int by) { return n >= 12LL * by; }
 
   bool degraded() const {
 
@@ -487,8 +491,14 @@ public:
     clear();
   }
 
-  // maintaining the deque costs more than two comparisons would
-  static bool worthwhile(int n) { return n >= 4; }
+  // Maintaining the deque costs more than two comparisons would. Beyond the
+  // by = 1 case the deque loses ground faster than the sums above do -- each
+  // slid observation pays its bookkeeping, but the answer still needs the
+  // front inspected and the departures matched -- so its crossover carries a
+  // steeper measured slope.
+  static bool worthwhile(int n, int by) {
+    return by == 1 ? n >= 4 : n >= 8LL * by;
+  }
 
   // comparisons are exact, so there is nothing to lose
   bool degraded() const { return false; }
@@ -552,8 +562,13 @@ public:
     clear();
   }
 
-  // sorted insertion beats re-selecting the middle even for a pair
-  static bool worthwhile(int) { return true; }
+  // Sorted insertion beats re-selecting the middle even for a pair, but each
+  // step pays 'by' insertions and removals of ~n/2 elements each where the
+  // selection pays one pass whatever 'by' is; the measured crossover sits at
+  // 'by' about a quarter of 'n', independent of 'n'.
+  static bool worthwhile(int n, int by) {
+    return by == 1 || n > 4LL * by;
+  }
 
   // the window is carried in full rather than summarized, so likewise
   bool degraded() const { return false; }
@@ -1342,7 +1357,7 @@ void roll_vector_partial_into(Callable f,
     std::fill(output, output + x.size(), NA_REAL);
 
   typedef typename accumulator_for<Callable>::type Incremental;
-  if (Incremental::worthwhile(n))
+  if (Incremental::worthwhile(n, by))
     roll_partial_windows<Incremental>(
       f, x, output, n, by, leftOffset, rightOffset);
   else
@@ -1434,7 +1449,7 @@ void roll_vector_fill_into(Callable f,
     }
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
-    i = Incremental::worthwhile(n) ?
+    i = Incremental::worthwhile(n, by) ?
       roll_fill_windows<Incremental>(
         f, x, output, n, by, i, padLeftTimes + ops_n, padLeftTimes) :
       roll_fill_direct(
@@ -1500,7 +1515,7 @@ void roll_vector_nofill_into(Callable f,
     }
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
-    if (Incremental::worthwhile(n))
+    if (Incremental::worthwhile(n, by))
       roll_nofill_windows<Incremental>(f, x, output, n, by, output_n);
     else
       roll_nofill_direct(f, x, output, n, by, output_n);
