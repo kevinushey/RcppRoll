@@ -106,6 +106,11 @@ inline int getRightPadding(Fill const& fill, char const* align, int n) {
 inline int rollOutputSize(int x_n, int n, int by, Fill const& fill, bool partial) {
   if (partial || fill.filled())
     return x_n;
+  // fewer observations than one window means no complete windows at all;
+  // integer division would otherwise round the count back up to one when 'by'
+  // exceeds the shortfall, and that window would read past the data
+  if (x_n < n)
+    return 0;
   return (x_n - n) / by + 1;
 }
 
@@ -1533,6 +1538,10 @@ void roll_vector_nofill_into(Callable f,
                              int weights_n,
                              int by) {
 
+  // no complete windows fit, and the output was sized accordingly
+  if (x_n < n)
+    return;
+
   int output_n = (x_n - n) / by + 1;
 
   int index = 0;
@@ -1652,10 +1661,21 @@ SEXP roll_with(Callable f,
   if (!Rf_isNumeric(data))
     Rf_error("'x' should be a numeric vector or matrix");
 
+  // a higher-dimensional array is almost certainly a mistake: rolling over
+  // its flattened data would silently cross slice boundaries
+  SEXP dims = Rf_getAttrib(data, R_DimSymbol);
+  if (dims != R_NilValue && Rf_length(dims) > 2)
+    Rf_error("'x' should be a numeric vector or matrix");
+
   // Normalize 'n' to match that of weights
   int weights_n = Rf_length(weights);
   if (weights_n)
     n = weights_n;
+
+  // the R wrappers reject these already; this backstop keeps a direct .Call
+  // from sizing an output the window loops would then write past
+  if (n < 1)
+    Rf_error("'n' should be a positive integer");
 
   std::vector<double> scaled =
     normalizeWeights(REAL(weights), weights_n, n, normalize);

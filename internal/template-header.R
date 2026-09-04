@@ -57,5 +57,12 @@ checkRollArgs <- function(n, weights, partial, missing_n, missing_fill) {
     n <- length(weights)
   }
 
+  # checked after 'weights' has had its say, since empty weights would
+  # otherwise smuggle in a window of size zero
+  n <- as.integer(n)[1L]
+  if (!isTRUE(n >= 1L)) {
+    stop(simpleError("'n' should be a positive integer", call))
+  }
+
   n
 }
