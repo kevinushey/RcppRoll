@@ -1463,9 +1463,14 @@ inline double weighted_median(double const* x,
       ? (b < c ? b : (a < c ? c : a))
       : (a < c ? a : (b < c ? c : b));
 
-    // split off the values below and above the pivot at the two ends of the
+    // Split off the values below and above the pivot at the two ends of the
     // other buffer, keeping the pivot's run whole so that repeated values
-    // cannot stall the descent
+    // cannot stall the descent. Which side a value lands on is a coin flip no
+    // branch predictor can learn, so the split is branchless: every element
+    // is written to both frontiers, and only the matching side's counter --
+    // and weight -- moves. A slot past its counter holds a stale copy that
+    // the next committed write overwrites, and the span left between the two
+    // frontiers is never read.
     size_t n_lt = 0;
     size_t n_gt = 0;
     double weight_lt = 0.0;
@@ -1473,14 +1478,15 @@ inline double weighted_median(double const* x,
 
     for (size_t i = 0; i < size; ++i) {
       double value = from[i].first;
-      if (value < pivot) {
-        weight_lt += from[i].second;
-        into[n_lt++] = from[i];
-      } else if (pivot < value) {
-        into[size - (++n_gt)] = from[i];
-      } else {
-        weight_eq += from[i].second;
-      }
+      double weight = from[i].second;
+      bool lt = value < pivot;
+      bool gt = pivot < value;
+      into[n_lt] = from[i];
+      into[size - 1 - n_gt] = from[i];
+      n_lt += lt;
+      n_gt += gt;
+      weight_lt += lt ? weight : 0.0;
+      weight_eq += (lt | gt) ? 0.0 : weight;
     }
 
     // Descend into whichever part the cumulative weight crosses half within,
