@@ -1,7 +1,7 @@
 Package: RcppRoll
 Type: Package
 Title: Efficient Rolling / Windowed Operations
-Version: 0.3.2.9000
+Version: 0.4.0
 Authors@R: person("Kevin", "Ushey", role = c("aut", "cre"),
     email = "kevinushey@gmail.com")
 Description: Provides fast and efficient routines for
