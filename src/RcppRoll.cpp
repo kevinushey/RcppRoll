@@ -166,9 +166,11 @@ public:
   // window over, which costs what computing it from scratch always cost.
   bool degraded() const {
     double result = value();
-    // an infinity that was added and then taken away again leaves a NaN, which
-    // says nothing at all about the window that remains
-    if (ISNAN(result))
+    // a total that overflowed sticks at infinity even after the values
+    // responsible have left the window, since Inf - finite is still Inf; and
+    // an infinity that was added and then taken away again leaves a NaN.
+    // Neither says anything about the window that remains.
+    if (!R_FINITE(result))
       return true;
     return magnitude_ > 1e12 * fabs(result);
   }

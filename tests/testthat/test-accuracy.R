@@ -80,6 +80,23 @@ test_that("infinities enter and leave a window without leaving a trace", {
 
 })
 
+test_that("a total that overflows recovers once the culprits leave", {
+
+  # every value is finite, but early window totals overflow; subtracting a
+  # finite value from that infinity leaves it infinite, so the windows past
+  # the overflow have to be rebuilt rather than slid into
+  x <- c(rep(1e307, 60), rep(1, 120))
+  expect_equal(tail(roll_sum(x, 48), 3), rep(48, 3))
+  expect_equal(tail(roll_mean(x, 48), 3), rep(1, 3))
+
+  # likewise for the variance: these squared deviations are individually
+  # finite, but their running sum is not
+  x <- c(0, rep(1.2e154, 20), rep(1, 60))
+  expect_equal(tail(roll_var(x, 12), 3), rep(0, 3))
+  expect_equal(tail(roll_sd(x, 12), 3), rep(0, 3))
+
+})
+
 test_that("min and max agree with base R on the sign of a zero", {
 
   x <- c(0, -0, 1, -0, 0)
