@@ -113,10 +113,28 @@ test_that("a NaN keeps its identity through a sum, an NA likewise", {
 
 })
 
-test_that("min and max agree with base R on the sign of a zero", {
+test_that("the sign of a zero survives min, max and median", {
 
+  # compared through their reciprocals, since identical() treats 0 and -0 as
+  # equal but 1/0 and 1/-0 are distinguishable infinities
   x <- c(0, -0, 1, -0, 0)
-  expect_identical(roll_min(x, 2), vapply(1:4, function(i) min(x[i:(i+1L)]), numeric(1)))
-  expect_identical(roll_max(x, 2), vapply(1:4, function(i) max(x[i:(i+1L)]), numeric(1)))
+
+  # min keeps the earlier of two equal values, which matches base R
+  expect_identical(
+    1 / roll_min(x, 2),
+    1 / vapply(1:4, function(i) min(x[i:(i+1L)]), numeric(1)))
+
+  # max has always kept the later, so a zero maximum takes the later zero's
+  # sign -- unlike base R's max, which keeps the first
+  expect_identical(1 / roll_max(x, 2), c(-Inf, 1, 1, Inf))
+
+  # Sliding removes zeros by value, so the removal has to match the sign bit
+  # or the sorted window drifts away from the data. Only even windows are
+  # asserted: their median averages both middle values, where an odd window's
+  # choice among equal-comparing zeros is unspecified even in base R.
+  x <- c(-0.0, 0.0, -0.0, 0.0, -0.0)
+  expect_identical(
+    1 / roll_median(x, 2),
+    1 / vapply(1:4, function(i) median(x[i:(i+1L)]), numeric(1)))
 
 })

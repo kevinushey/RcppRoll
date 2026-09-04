@@ -617,6 +617,21 @@ public:
     if (ISNAN(value)) { --n_na_; return; }
     std::vector<double>::iterator it =
       std::lower_bound(sorted_.begin(), sorted_.end(), value);
+
+    // -0.0 and +0.0 compare equal but are different values: erase the zero
+    // whose sign matches the departing one, or the window's zeros would stop
+    // reflecting the data's and a zero median could report the wrong sign
+    if (value == 0.0) {
+      for (std::vector<double>::iterator zit = it;
+           zit != sorted_.end() && *zit == 0.0;
+           ++zit) {
+        if (std::signbit(*zit) == std::signbit(value)) {
+          it = zit;
+          break;
+        }
+      }
+    }
+
     if (it != sorted_.end() && *it == value)
       sorted_.erase(it);
   }
