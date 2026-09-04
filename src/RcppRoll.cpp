@@ -136,9 +136,20 @@ inline std::vector<double> normalizeWeights(double const* weights,
   return scaled;
 }
 
+// R's ISNAN and R_FINITE compile to out-of-line calls into libR from C++;
+// for doubles these are the same predicates, and they stay inline. Telling
+// NA from other NaNs still needs R_IsNA(), so that stays behind an is_nan().
+inline bool is_nan(double value) {
+  return std::isnan(value);
+}
+
+inline bool is_finite(double value) {
+  return std::isfinite(value);
+}
+
 // sqrt() would turn NA_REAL into a plain NaN, so pass non-values through
 inline double window_sqrt(double value) {
-  return ISNAN(value) ? value : sqrt(value);
+  return is_nan(value) ? value : sqrt(value);
 }
 
 // Neumaier compensated summation. Sliding a window means subtracting values
@@ -158,7 +169,7 @@ public:
 
   void add(double value) {
     double updated = total_ + value;
-    if (R_FINITE(updated)) {
+    if (is_finite(updated)) {
       if (fabs(total_) >= fabs(value))
         compensation_ += (total_ - updated) + value;
       else
@@ -192,7 +203,7 @@ public:
     // responsible have left the window, since Inf - finite is still Inf; and
     // an infinity that was added and then taken away again leaves a NaN.
     // Neither says anything about the window that remains.
-    if (!R_FINITE(result))
+    if (!is_finite(result))
       return true;
     return magnitude_ > 1e12 * fabs(result);
   }
@@ -326,8 +337,7 @@ public:
 
   void add(int i) {
     double value = this->x_[i];
-    if (ISNA(value)) ++n_na_;
-    else if (ISNAN(value)) ++n_nan_;
+    if (is_nan(value)) { if (ISNA(value)) ++n_na_; else ++n_nan_; }
     else if (value == R_PosInf) ++n_pos_inf_;
     else if (value == R_NegInf) ++n_neg_inf_;
     else { total_.add(value); ++n_finite_; }
@@ -335,8 +345,7 @@ public:
 
   void remove(int i) {
     double value = this->x_[i];
-    if (ISNA(value)) --n_na_;
-    else if (ISNAN(value)) --n_nan_;
+    if (is_nan(value)) { if (ISNA(value)) --n_na_; else --n_nan_; }
     else if (value == R_PosInf) --n_pos_inf_;
     else if (value == R_NegInf) --n_neg_inf_;
     else { total_.remove(value); --n_finite_; }
@@ -418,7 +427,7 @@ public:
     int count = 0;
     for (int i = start; i <= end; ++i) {
       double value = this->x_[i];
-      if (!ISNAN(value) && R_FINITE(value)) {
+      if (is_finite(value)) {
         total += value;
         ++count;
       }
@@ -437,8 +446,8 @@ public:
 
   void add(int i) {
     double value = this->x_[i];
-    if (ISNAN(value)) { ++n_na_; return; }
-    if (!R_FINITE(value)) { ++n_infinite_; return; }
+    if (is_nan(value)) { ++n_na_; return; }
+    if (!is_finite(value)) { ++n_infinite_; return; }
     if (!have_shift_) { shift_ = value; have_shift_ = true; }
     double difference = value - shift_;
     s1_.add(difference);
@@ -448,8 +457,8 @@ public:
 
   void remove(int i) {
     double value = this->x_[i];
-    if (ISNAN(value)) { --n_na_; return; }
-    if (!R_FINITE(value)) { --n_infinite_; return; }
+    if (is_nan(value)) { --n_na_; return; }
+    if (!is_finite(value)) { --n_infinite_; return; }
     double difference = value - shift_;
     s1_.remove(difference);
     s2_.remove(difference * difference);
@@ -537,14 +546,14 @@ public:
 
   void add(int i) {
     double value = this->x_[i];
-    if (ISNAN(value)) { ++n_na_; return; }
+    if (is_nan(value)) { ++n_na_; return; }
     while (!candidates_.empty() && beats(value, this->x_[candidates_.back()]))
       candidates_.pop_back();
     candidates_.push_back(i);
   }
 
   void remove(int i) {
-    if (ISNAN(this->x_[i])) { --n_na_; return; }
+    if (is_nan(this->x_[i])) { --n_na_; return; }
     if (!candidates_.empty() && candidates_.front() == i)
       candidates_.pop_front();
   }
@@ -607,14 +616,14 @@ public:
 
   void add(int i) {
     double value = this->x_[i];
-    if (ISNAN(value)) { ++n_na_; return; }
+    if (is_nan(value)) { ++n_na_; return; }
     sorted_.insert(
       std::lower_bound(sorted_.begin(), sorted_.end(), value), value);
   }
 
   void remove(int i) {
     double value = this->x_[i];
-    if (ISNAN(value)) { --n_na_; return; }
+    if (is_nan(value)) { --n_na_; return; }
     std::vector<double>::iterator it =
       std::lower_bound(sorted_.begin(), sorted_.end(), value);
 
@@ -672,7 +681,7 @@ struct mean_f<true> {
     double result = 0.0;
     int num = 0;
     for (int i = 0; i < n; ++i) {
-      if (!ISNAN(x[offset + i])) {
+      if (!is_nan(x[offset + i])) {
         result += x[offset + i];
         ++num;
       }
@@ -689,7 +698,7 @@ struct mean_f<true> {
     double result = 0.0;
     double weights_sum = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!ISNAN(x[offset + i])) {
+      if (!is_nan(x[offset + i])) {
         result += x[offset + i] * weights[i];
         weights_sum += weights[i];
       }
@@ -753,7 +762,7 @@ struct sum_f<true> {
   inline double operator()(double const* x, int offset, int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!ISNAN(x[offset + i])) {
+      if (!is_nan(x[offset + i])) {
         result += x[offset + i];
       }
     }
@@ -766,7 +775,7 @@ struct sum_f<true> {
                            int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!ISNAN(x[offset + i])) {
+      if (!is_nan(x[offset + i])) {
         result += x[offset + i] * weights[i];
       }
     }
@@ -786,7 +795,7 @@ struct min_f<false> {
                            int n) {
     double result = R_PosInf;
     for (int i = 0; i < n; ++i) {
-      if (ISNAN(x[offset + i])) {
+      if (is_nan(x[offset + i])) {
         return NA_REAL;
       }
       result = x[offset + i] < result ? x[offset + i] : result;
@@ -800,7 +809,7 @@ struct min_f<false> {
                            int n) {
     double result = R_PosInf;
     for (int i = 0; i < n; ++i) {
-      if (ISNAN(x[offset + i])) {
+      if (is_nan(x[offset + i])) {
         return NA_REAL;
       }
 #define VALUE (x[offset + i] * weights[i])
@@ -851,7 +860,7 @@ struct max_f<false> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (ISNAN(x[offset + i])) {
+      if (is_nan(x[offset + i])) {
         return NA_REAL;
       }
 #define VALUE (x[offset + i] * weights[i])
@@ -866,7 +875,7 @@ struct max_f<false> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (ISNAN(x[offset + i])) {
+      if (is_nan(x[offset + i])) {
         return NA_REAL;
       }
       result = x[offset + i] < result ? result : x[offset + i];
@@ -884,7 +893,7 @@ struct max_f<true> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (ISNAN(x[offset + i])) continue;
+      if (is_nan(x[offset + i])) continue;
 #define VALUE (x[offset + i] * weights[i])
       result = VALUE < result ? result : VALUE;
 #undef VALUE
@@ -897,7 +906,7 @@ struct max_f<true> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (ISNAN(x[offset + i])) continue;
+      if (is_nan(x[offset + i])) continue;
       result = x[offset + i] < result ? result : x[offset + i];
     }
     return result;
@@ -913,7 +922,7 @@ struct prod_f<true> {
   inline double operator()(double const* x, int offset, int n) {
     double result = 1.0;
     for (int i = 0; i < n; ++i) {
-      if (!ISNAN(x[offset + i])) {
+      if (!is_nan(x[offset + i])) {
         result *= x[offset + i];
       }
     }
@@ -926,7 +935,7 @@ struct prod_f<true> {
                            int n) {
     double result = 1.0;
     for (int i = 0; i < n; ++i) {
-      if (!ISNAN(x[offset + i])) {
+      if (!is_nan(x[offset + i])) {
         result *= x[offset + i] * weights[i];
       }
     }
@@ -971,7 +980,7 @@ inline double weighted_median(double const* x,
   scratch.clear();
   for (int i = 0; i < n; ++i) {
     double value = x[offset + i];
-    if (!ISNAN(value))
+    if (!is_nan(value))
       scratch.push_back(std::make_pair(value, weights[i]));
   }
 
@@ -1034,7 +1043,7 @@ struct median_f<false> {
   inline double operator()(double const* x, int offset, int n) {
 
     for (int i = offset; i < offset + n; i++)
-      if (ISNAN(x[i]))
+      if (is_nan(x[i]))
         return NA_REAL;
 
     scratch_.assign(x + offset, x + offset + n);
@@ -1048,7 +1057,7 @@ struct median_f<false> {
                            int n) {
 
     for (int i = offset; i < offset + n; i++)
-      if (ISNAN(x[i]))
+      if (is_nan(x[i]))
         return NA_REAL;
 
     return weighted_median(x, offset, weights, n, weighted_scratch_);
@@ -1069,7 +1078,7 @@ struct median_f<true> {
     scratch_.clear();
     scratch_.reserve(n);
     for (int i = offset; i < offset + n; i++)
-      if (!ISNAN(x[i]))
+      if (!is_nan(x[i]))
         scratch_.push_back(x[i]);
 
     return select_median(scratch_);
@@ -1106,7 +1115,7 @@ inline double window_var(double const* x,
 
   for (int i = 0; i < n; ++i) {
     double value = x[offset + i];
-    if (ISNAN(value)) {
+    if (is_nan(value)) {
       has_na = true;
     } else {
       total += value;
@@ -1127,7 +1136,7 @@ inline double window_var(double const* x,
   double residual = 0.0;
   for (int i = 0; i < n; ++i) {
     double value = x[offset + i];
-    if (!ISNAN(value)) {
+    if (!is_nan(value)) {
       double difference = value - mean;
       squares += difference * difference;
       residual += difference;
@@ -1168,7 +1177,7 @@ inline double weighted_var(double const* x,
 
   for (int i = 0; i < n; ++i) {
     double value = x[offset + i];
-    if (ISNAN(value)) {
+    if (is_nan(value)) {
       has_na = true;
     } else {
       weights_sum += weights[i];
@@ -1190,7 +1199,7 @@ inline double weighted_var(double const* x,
   double residual = 0.0;
   for (int i = 0; i < n; ++i) {
     double value = x[offset + i];
-    if (!ISNAN(value)) {
+    if (!is_nan(value)) {
       double difference = value - mean;
       squares += weights[i] * difference * difference;
       residual += weights[i] * difference;
@@ -1719,7 +1728,7 @@ extern "C" SEXP na_locf(SEXP x)
   for (R_xlen_t i = 0; i < n; ++i)
   {
     double value = data[i];
-    if (!ISNAN(value))
+    if (!RcppRoll::is_nan(value))
       lastNonNA = value;
     else
       data[i] = lastNonNA;
