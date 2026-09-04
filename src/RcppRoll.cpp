@@ -2338,6 +2338,21 @@ SEXP roll_with(Callable f,
 
 extern "C" SEXP na_locf(SEXP x)
 {
+  // a double vector with nothing missing is its own answer -- return it
+  // rather than copying it
+  if (TYPEOF(x) == REALSXP)
+  {
+    double const* data = REAL(x);
+    R_xlen_t n = Rf_xlength(x);
+
+    R_xlen_t i = 0;
+    while (i < n && !RcppRoll::is_nan(data[i]))
+      ++i;
+
+    if (i == n)
+      return x;
+  }
+
   SEXP output = PROTECT(
     TYPEOF(x) == REALSXP ? Rf_duplicate(x) : Rf_coerceVector(x, REALSXP));
 
