@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <deque>
 #include <utility>
 #include <vector>
 
@@ -594,8 +593,11 @@ private:
 
 // Monotonic deque of candidate indices behind min() and max(): the front is
 // always the extremum of the current window, and an index is dropped as soon
-// as a later observation beats it. Ties are broken the way the from-scratch
-// loops broke them, so that the sign of a zero carries through unchanged.
+// as a later observation beats it. A window of n observations never holds an
+// index twice, so the deque lives in a ring over a buffer sized once at
+// construction -- no allocation, and no chunked indirection, on the hot path.
+// Ties are broken the way the from-scratch loops broke them, so that the
+// sign of a zero carries through unchanged.
 template <bool NA_RM, bool IS_MIN>
 class ExtremumAccumulator :
   public WindowAccumulator< ExtremumAccumulator<NA_RM, IS_MIN> > {
@@ -605,7 +607,8 @@ class ExtremumAccumulator :
 public:
 
   template <typename Callable>
-  ExtremumAccumulator(Callable, double const* x, int) : Base(x) {
+  ExtremumAccumulator(Callable, double const* x, int n) : Base(x) {
+    candidates_.resize(n > 0 ? n : 1);
     clear();
   }
 
@@ -621,31 +624,35 @@ public:
   void prepare(int, int) {}
 
   void clear() {
-    candidates_.clear();
+    head_ = 0;
+    count_ = 0;
     n_na_ = 0;
   }
 
   void add(int i) {
     double value = this->x_[i];
     if (is_nan(value)) { ++n_na_; return; }
-    while (!candidates_.empty() && beats(value, this->x_[candidates_.back()]))
-      candidates_.pop_back();
-    candidates_.push_back(i);
+    while (count_ && beats(value, this->x_[back()]))
+      --count_;
+    candidates_[wrap(head_ + count_)] = i;
+    ++count_;
   }
 
   void remove(int i) {
     if (is_nan(this->x_[i])) { --n_na_; return; }
-    if (!candidates_.empty() && candidates_.front() == i)
-      candidates_.pop_front();
+    if (count_ && candidates_[head_] == i) {
+      head_ = wrap(head_ + 1);
+      --count_;
+    }
   }
 
   double value() const {
     if (!NA_RM && n_na_)
       return NA_REAL;
     // an empty window keeps the identity the from-scratch loops started from
-    if (candidates_.empty())
+    if (count_ == 0)
       return IS_MIN ? R_PosInf : R_NegInf;
-    return this->x_[candidates_.front()];
+    return this->x_[candidates_[head_]];
   }
 
 private:
@@ -655,7 +662,19 @@ private:
     return IS_MIN ? candidate < incumbent : candidate >= incumbent;
   }
 
-  std::deque<int> candidates_;
+  // positions reach at most one lap past the buffer, so one subtraction wraps
+  size_t wrap(size_t position) const {
+    size_t size = candidates_.size();
+    return position >= size ? position - size : position;
+  }
+
+  int back() const {
+    return candidates_[wrap(head_ + count_ - 1)];
+  }
+
+  std::vector<int> candidates_;
+  size_t head_;
+  size_t count_;
   int n_na_;
 
 };
@@ -1923,14 +1942,28 @@ inline int requestedThreads() {
   return omp_get_max_threads();
 }
 
-inline int threadCount(int chunks) {
-  if (chunks < 2 || rcpproll_forked)
+#endif
+
+// The number of threads one roll_*() call may put to work, read once on the
+// main thread before any window is walked: consulting the option touches the
+// R API, and the column loop below may run everything downstream of it on
+// worker threads, where no R API call may fire. A serial build's budget is
+// one.
+inline int threadBudget() {
+#ifdef _OPENMP
+  if (rcpproll_forked)
     return 1;
-  int threads = requestedThreads();
-  return threads < chunks ? threads : chunks;
+  return requestedThreads();
+#else
+  return 1;
+#endif
 }
 
-#endif
+inline int threadCount(int chunks, int budget) {
+  if (chunks < 2)
+    return 1;
+  return budget < chunks ? budget : chunks;
+}
 
 // ---------------------------------------------------------------------------
 // Drivers
@@ -1947,15 +1980,16 @@ void roll_partial_windows(Accumulator const& prototype,
                           int width,
                           int by,
                           int leftOffset,
-                          int rightOffset) {
+                          int rightOffset,
+                          int threads) {
 
   int ops = x_n ? (x_n - 1) / by + 1 : 0;
   int chunk = chunkSize(width);
   int chunks = ops ? (ops - 1) / chunk + 1 : 0;
 
 #ifdef _OPENMP
-  int threads = threadCount(chunks);
-# pragma omp parallel for num_threads(threads) if (threads > 1)
+  int team = threadCount(chunks, threads);
+# pragma omp parallel for num_threads(team) if (team > 1)
 #endif
   for (int c = 0; c < chunks; ++c) {
     Accumulator accumulator(prototype);
@@ -1983,7 +2017,8 @@ void roll_vector_partial_into(Callable f,
                               double* output,
                               int n,
                               int by,
-                              char const* align) {
+                              char const* align,
+                              int threads) {
 
   int leftOffset  = getLeftOffset(align, n);
   int rightOffset = getRightOffset(align, n);
@@ -2005,11 +2040,11 @@ void roll_vector_partial_into(Callable f,
   if (Incremental::worthwhile(n, by))
     roll_partial_windows(
       Incremental(f, x, width), x_n, output, width, by,
-      leftOffset, rightOffset);
+      leftOffset, rightOffset, threads);
   else
     roll_partial_windows(
       DirectAccumulator<Callable>(f, x, width), x_n, output, width, by,
-      leftOffset, rightOffset);
+      leftOffset, rightOffset, threads);
 
 }
 
@@ -2023,15 +2058,16 @@ int roll_fill_windows(Accumulator const& prototype,
                       int by,
                       int from,
                       int to,
-                      int padLeftTimes) {
+                      int padLeftTimes,
+                      int threads) {
 
   int ops = to > from ? (to - from - 1) / by + 1 : 0;
   int chunk = chunkSize(n);
   int chunks = ops ? (ops - 1) / chunk + 1 : 0;
 
 #ifdef _OPENMP
-  int threads = threadCount(chunks);
-# pragma omp parallel for num_threads(threads) if (threads > 1)
+  int team = threadCount(chunks, threads);
+# pragma omp parallel for num_threads(team) if (team > 1)
 #endif
   for (int c = 0; c < chunks; ++c) {
     Accumulator accumulator(prototype);
@@ -2057,7 +2093,8 @@ void roll_vector_fill_into(Callable f,
                            int weights_n,
                            int by,
                            Fill const& fill,
-                           char const* align) {
+                           char const* align,
+                           int threads) {
 
   if (x_n < n) {
     std::fill(output, output + x_n, NA_REAL);
@@ -2087,15 +2124,15 @@ void roll_vector_fill_into(Callable f,
   if (weights_n) {
     i = roll_fill_windows(
       WeightedAccumulator<Callable>(f, x, weights),
-      output, n, by, i, to, padLeftTimes);
+      output, n, by, i, to, padLeftTimes, threads);
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
     i = Incremental::worthwhile(n, by) ?
       roll_fill_windows(
-        Incremental(f, x, n), output, n, by, i, to, padLeftTimes) :
+        Incremental(f, x, n), output, n, by, i, to, padLeftTimes, threads) :
       roll_fill_windows(
         DirectAccumulator<Callable>(f, x, n), output, n, by, i, to,
-        padLeftTimes);
+        padLeftTimes, threads);
   }
 
   // Fill-right on the remainders. We move the index
@@ -2112,14 +2149,15 @@ void roll_nofill_windows(Accumulator const& prototype,
                          double* output,
                          int n,
                          int by,
-                         int output_n) {
+                         int output_n,
+                         int threads) {
 
   int chunk = chunkSize(n);
   int chunks = output_n ? (output_n - 1) / chunk + 1 : 0;
 
 #ifdef _OPENMP
-  int threads = threadCount(chunks);
-# pragma omp parallel for num_threads(threads) if (threads > 1)
+  int team = threadCount(chunks, threads);
+# pragma omp parallel for num_threads(team) if (team > 1)
 #endif
   for (int c = 0; c < chunks; ++c) {
     Accumulator accumulator(prototype);
@@ -2140,7 +2178,8 @@ void roll_vector_nofill_into(Callable f,
                              int n,
                              double const* weights,
                              int weights_n,
-                             int by) {
+                             int by,
+                             int threads) {
 
   // no complete windows fit, and the output was sized accordingly
   if (x_n < n)
@@ -2150,14 +2189,17 @@ void roll_vector_nofill_into(Callable f,
 
   if (weights_n) {
     roll_nofill_windows(
-      WeightedAccumulator<Callable>(f, x, weights), output, n, by, output_n);
+      WeightedAccumulator<Callable>(f, x, weights), output, n, by, output_n,
+      threads);
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
     if (Incremental::worthwhile(n, by))
-      roll_nofill_windows(Incremental(f, x, n), output, n, by, output_n);
+      roll_nofill_windows(
+        Incremental(f, x, n), output, n, by, output_n, threads);
     else
       roll_nofill_windows(
-        DirectAccumulator<Callable>(f, x, n), output, n, by, output_n);
+        DirectAccumulator<Callable>(f, x, n), output, n, by, output_n,
+        threads);
   }
 
 }
@@ -2173,17 +2215,19 @@ void roll_vector_into(Callable f,
                       int by,
                       Fill const& fill,
                       bool partial,
-                      char const* align) {
+                      char const* align,
+                      int threads) {
 
   // partial windows are computable at every point, so there is nothing to
   // shorten or to pad; 'weights' is rejected upstream in this case
   if (partial)
-    roll_vector_partial_into(f, x, x_n, output, n, by, align);
+    roll_vector_partial_into(f, x, x_n, output, n, by, align, threads);
   else if (fill.filled())
     roll_vector_fill_into(
-      f, x, x_n, output, n, weights, weights_n, by, fill, align);
+      f, x, x_n, output, n, weights, weights_n, by, fill, align, threads);
   else
-    roll_vector_nofill_into(f, x, x_n, output, n, weights, weights_n, by);
+    roll_vector_nofill_into(
+      f, x, x_n, output, n, weights, weights_n, by, threads);
 
 }
 
@@ -2196,7 +2240,8 @@ SEXP roll_vector_with(Callable f,
                       int by,
                       Fill const& fill,
                       bool partial,
-                      char const* align) {
+                      char const* align,
+                      int threads) {
 
   SEXP x = PROTECT(Rf_coerceVector(data, REALSXP));
   int x_n = Rf_length(x);
@@ -2206,7 +2251,7 @@ SEXP roll_vector_with(Callable f,
 
   roll_vector_into(
     f, REAL(x), x_n, REAL(output),
-    n, weights, weights_n, by, fill, partial, align);
+    n, weights, weights_n, by, fill, partial, align, threads);
 
   UNPROTECT(2);
   return output;
@@ -2224,11 +2269,16 @@ SEXP roll_matrix_with(Callable f,
                       int by,
                       Fill const& fill,
                       bool partial,
-                      char const* align) {
+                      char const* align,
+                      int threads) {
 
   int nrow = Rf_nrows(data);
   int ncol = Rf_ncols(data);
   int output_nrow = rollOutputSize(nrow, n, by, fill, partial);
+
+  // the offsets are recomputed inside each column's walk, possibly on a
+  // worker thread, where an Rf_error() must never fire -- validate here
+  getLeftOffset(align, n);
 
   SEXP x = PROTECT(Rf_coerceVector(data, REALSXP));
   SEXP output = PROTECT(Rf_allocMatrix(REALSXP, output_nrow, ncol));
@@ -2247,11 +2297,40 @@ SEXP roll_matrix_with(Callable f,
   double const* source = REAL(x);
   double* target = REAL(output);
 
+  // Short columns offer the drivers fewer chunks than the matrix offers
+  // columns, so the parallelism moves up a level: the columns run across
+  // threads, each column walked serially. The count mirrors the chunking the
+  // drivers would use, and the choice moves no chunk boundary, so results
+  // stay identical either way -- columns share nothing, and everything a
+  // column touches from here down is R-API-free.
+  int column_threads = 1;
+#ifdef _OPENMP
+  if (threads > 1 && ncol > 1) {
+
+    int width = n;
+    if (partial && nrow < n)
+      width = nrow;
+
+    int ops = partial
+      ? (nrow ? (nrow - 1) / by + 1 : 0)
+      : (nrow >= n ? (nrow - n) / by + 1 : 0);
+
+    int column_chunks = ops ? (ops - 1) / chunkSize(width) + 1 : 0;
+    if (column_chunks <= ncol)
+      column_threads = threads < ncol ? threads : ncol;
+  }
+#endif
+
+  int worker_threads = column_threads > 1 ? 1 : threads;
+
+#ifdef _OPENMP
+# pragma omp parallel for num_threads(column_threads) if (column_threads > 1)
+#endif
   for (int j = 0; j < ncol; ++j) {
     roll_vector_into(f, source + (R_xlen_t) j * nrow, nrow,
                      target + (R_xlen_t) j * output_nrow,
                      n, weights, weights_n, by,
-                     fill, partial, align);
+                     fill, partial, align, worker_threads);
   }
 
   UNPROTECT(2);
@@ -2267,14 +2346,15 @@ SEXP roll_dispatch(Callable f,
                    int by,
                    Fill const& fill,
                    bool partial,
-                   char const* align) {
+                   char const* align,
+                   int threads) {
 
   if (Rf_isMatrix(data))
     return roll_matrix_with(
-      f, data, n, weights, weights_n, by, fill, partial, align);
+      f, data, n, weights, weights_n, by, fill, partial, align, threads);
 
   return roll_vector_with(
-    f, data, n, weights, weights_n, by, fill, partial, align);
+    f, data, n, weights, weights_n, by, fill, partial, align, threads);
 
 }
 
@@ -2310,20 +2390,24 @@ SEXP roll_with(Callable f,
   if (n < 1)
     Rf_error("'n' should be a positive integer");
 
+  // read once, up front: the option is R state, and the walks below may
+  // leave the main thread
+  int threads = threadBudget();
+
   // uniform weights are an unweighted call in disguise, so route them to the
   // unweighted loops, which carry their windows incrementally where the
   // weighted forms recompute every window
   if (weightsAreUniform(REAL(weights), weights_n, normalize))
     return roll_dispatch(
       uniform_equivalent(f), data, n,
-      (double const*) NULL, 0, by, fill, partial, align);
+      (double const*) NULL, 0, by, fill, partial, align, threads);
 
   std::vector<double> scaled =
     normalizeWeights(REAL(weights), weights_n, n, normalize);
   double const* weights_data = scaled.empty() ? NULL : &scaled[0];
 
   return roll_dispatch(
-    f, data, n, weights_data, weights_n, by, fill, partial, align);
+    f, data, n, weights_data, weights_n, by, fill, partial, align, threads);
 
 }
 
@@ -2331,6 +2415,21 @@ SEXP roll_with(Callable f,
 
 extern "C" SEXP na_locf(SEXP x)
 {
+  // a double vector with nothing missing is its own answer -- return it
+  // rather than copying it
+  if (TYPEOF(x) == REALSXP)
+  {
+    double const* data = REAL(x);
+    R_xlen_t n = Rf_xlength(x);
+
+    R_xlen_t i = 0;
+    while (i < n && !RcppRoll::is_nan(data[i]))
+      ++i;
+
+    if (i == n)
+      return x;
+  }
+
   SEXP output = PROTECT(
     TYPEOF(x) == REALSXP ? Rf_duplicate(x) : Rf_coerceVector(x, REALSXP));
 
