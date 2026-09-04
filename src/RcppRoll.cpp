@@ -292,7 +292,11 @@ protected:
 
 };
 
-// Fallback for operations with no incremental form -- recompute the window.
+// Recomputes the window on every call: the fallback whenever carrying state
+// forward is not worthwhile, and the only form an operation without an
+// incremental equivalent ever takes. Adapting the callable to the same
+// compute(start, end) protocol lets one set of window-walking drivers serve
+// both paths.
 template <typename Callable>
 class DirectAccumulator {
 
@@ -1391,26 +1395,6 @@ void roll_partial_windows(Callable f,
 
 }
 
-template <typename Callable>
-void roll_partial_direct(Callable f,
-                         double const* x,
-                         int x_n,
-                         double* output,
-                         int n,
-                         int by,
-                         int leftOffset,
-                         int rightOffset) {
-
-  for (int i = 0; i < x_n; i += by) {
-    int start = i - leftOffset;
-    int end   = i + rightOffset;
-    if (start < 0) start = 0;
-    if (end > x_n - 1) end = x_n - 1;
-    output[i] = f(x, start, end - start + 1);
-  }
-
-}
-
 // Windows clipped to the bounds of 'x': every point gets an answer, computed
 // over however many observations are in range. The point a window is reported
 // at is always in range itself, so a window is never empty.
@@ -1441,7 +1425,8 @@ void roll_vector_partial_into(Callable f,
     roll_partial_windows<Incremental>(
       f, x, x_n, output, n, by, leftOffset, rightOffset);
   else
-    roll_partial_direct(f, x, x_n, output, n, by, leftOffset, rightOffset);
+    roll_partial_windows< DirectAccumulator<Callable> >(
+      f, x, x_n, output, n, by, leftOffset, rightOffset);
 
 }
 
@@ -1465,23 +1450,6 @@ int roll_fill_windows(Callable f,
     int start = i - padLeftTimes;
     output[i] = accumulator.compute(start, start + n - 1);
   }
-
-  return i;
-}
-
-template <typename Callable>
-int roll_fill_direct(Callable f,
-                     double const* x,
-                     double* output,
-                     int n,
-                     int by,
-                     int from,
-                     int to,
-                     int padLeftTimes) {
-
-  int i = from;
-  for (; i < to; i += by)
-    output[i] = f(x, i - padLeftTimes, n);
 
   return i;
 }
@@ -1532,7 +1500,7 @@ void roll_vector_fill_into(Callable f,
     i = Incremental::worthwhile(n, by) ?
       roll_fill_windows<Incremental>(
         f, x, output, n, by, i, padLeftTimes + ops_n, padLeftTimes) :
-      roll_fill_direct(
+      roll_fill_windows< DirectAccumulator<Callable> >(
         f, x, output, n, by, i, padLeftTimes + ops_n, padLeftTimes);
   }
 
@@ -1558,21 +1526,6 @@ void roll_nofill_windows(Callable f,
   int index = 0;
   for (int i = 0; i < output_n; ++i) {
     output[i] = accumulator.compute(index, index + n - 1);
-    index += by;
-  }
-}
-
-template <typename Callable>
-void roll_nofill_direct(Callable f,
-                        double const* x,
-                        double* output,
-                        int n,
-                        int by,
-                        int output_n) {
-
-  int index = 0;
-  for (int i = 0; i < output_n; ++i) {
-    output[i] = f(x, index, n);
     index += by;
   }
 }
@@ -1604,7 +1557,8 @@ void roll_vector_nofill_into(Callable f,
     if (Incremental::worthwhile(n, by))
       roll_nofill_windows<Incremental>(f, x, output, n, by, output_n);
     else
-      roll_nofill_direct(f, x, output, n, by, output_n);
+      roll_nofill_windows< DirectAccumulator<Callable> >(
+        f, x, output, n, by, output_n);
   }
 
 }
