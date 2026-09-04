@@ -83,6 +83,10 @@ test_that("results do not depend on the number of threads", {
   m <- matrix(rnorm(1e5), ncol = 2)
   weights <- runif(100)
 
+  # columns too short to chunk run across threads as whole columns instead
+  wm <- matrix(rnorm(1e5), nrow = 100)
+  wweights <- runif(20)
+
   functions <- c("mean", "median", "min", "max", "prod", "sum", "sd", "var")
 
   for (f in functions) {
@@ -98,7 +102,10 @@ test_that("results do not depend on the number of threads", {
         roll(x, 100, fill = NA, by = 7),
         roll(x, 100, partial = TRUE),
         roll(x, 100, weights = weights, na.rm = TRUE),
-        roll(m, 100)
+        roll(m, 100),
+        roll(wm, 20),
+        roll(wm, 20, partial = TRUE),
+        roll(wm, 20, weights = wweights)
       )
     }
 
