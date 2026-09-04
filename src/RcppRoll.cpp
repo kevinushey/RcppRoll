@@ -660,11 +660,66 @@ private:
 
 };
 
-// The window is kept in sorted order, so the median is a lookup and each step
-// costs a binary search plus one memmove -- cheaper than selecting the middle
-// element out of the whole window every time. The LOWER form reports the lower
-// of an even window's two middle values rather than their average, which is
-// the value a weighted median with uniform weights selects.
+// Strict total order over observation indices: by value, then by position.
+// Distinct indices never compare equal, which is what lets the paired heaps
+// below settle membership exactly -- equal values, signed zeros included, are
+// told apart by where they sit in the data.
+class MedianOrder {
+
+public:
+
+  explicit MedianOrder(double const* x) : x_(x) {}
+
+  bool operator()(int lhs, int rhs) const {
+    double a = x_[lhs];
+    double b = x_[rhs];
+    if (a < b) return true;
+    if (b < a) return false;
+    return lhs < rhs;
+  }
+
+private:
+
+  double const* x_;
+
+};
+
+// the same order reversed, for the heap that wants its minimum on top
+class MedianOrderReversed {
+
+public:
+
+  explicit MedianOrderReversed(double const* x) : order_(x) {}
+
+  bool operator()(int lhs, int rhs) const {
+    return order_(rhs, lhs);
+  }
+
+private:
+
+  MedianOrder order_;
+
+};
+
+// A small window is kept in sorted order, so the median is a lookup and each
+// step costs a binary search plus one memmove -- cheaper than selecting the
+// middle element out of the whole window every time, and cheaper than any
+// pointer structure while the memmove stays short. A large window is kept as
+// a pair of heaps meeting at the median -- the lower half under a max-heap,
+// the upper under a min-heap -- whose steps cost O(log n) where the memmove
+// costs O(n).
+//
+// The heaps hold indices rather than values, ordered by value and then by
+// position. Removal is then lazy: windows only ever move forward, so an
+// index before the window start is dead wherever it is, and is dropped when
+// it surfaces at a top. Only the live counts have to be exact, and they can
+// be: an element is still live when its removal is charged, so the side it
+// sits on is settled by comparing it against the lower half's live maximum
+// under the strict order.
+//
+// The LOWER form reports the lower of an even window's two middle values
+// rather than their average, which is the value a weighted median with
+// uniform weights selects.
 template <bool NA_RM, bool LOWER>
 class MedianAccumulator :
   public WindowAccumulator< MedianAccumulator<NA_RM, LOWER> > {
@@ -674,8 +729,16 @@ class MedianAccumulator :
 public:
 
   template <typename Callable>
-  MedianAccumulator(Callable, double const* x, int n) : Base(x) {
-    if (n > 0) sorted_.reserve(n);
+  MedianAccumulator(Callable, double const* x, int n)
+    : Base(x), lower_order_(x), upper_order_(x) {
+
+    // the memmove's bandwidth beats the heaps' pointer-chasing up to windows
+    // of about two hundred observations (measured); past that the heaps win
+    heaped_ = n >= 192;
+
+    if (!heaped_ && n > 0)
+      sorted_.reserve(n);
+
     clear();
   }
 
@@ -695,19 +758,57 @@ public:
 
   void clear() {
     sorted_.clear();
+    lower_.clear();
+    upper_.clear();
+    lower_live_ = upper_live_ = 0;
+    expired_before_ = 0;
     n_na_ = 0;
   }
 
   void add(int i) {
     double value = this->x_[i];
     if (is_nan(value)) { ++n_na_; return; }
-    sorted_.insert(
-      std::lower_bound(sorted_.begin(), sorted_.end(), value), value);
+    if (heaped_)
+      heapAdd(i);
+    else
+      sortedAdd(value);
   }
 
   void remove(int i) {
     double value = this->x_[i];
     if (is_nan(value)) { --n_na_; return; }
+    if (heaped_)
+      heapRemove(i);
+    else
+      sortedRemove(value);
+  }
+
+  double value() const {
+
+    if (!NA_RM && n_na_)
+      return NA_REAL;
+
+    if (heaped_)
+      return heapValue();
+
+    size_t k = sorted_.size();
+    if (k == 0)
+      return NA_REAL;
+    if (LOWER)
+      return sorted_[(k - 1) / 2];
+    if (k % 2 == 0)
+      return (sorted_[k / 2 - 1] + sorted_[k / 2]) / 2;
+    return sorted_[k / 2];
+  }
+
+private:
+
+  void sortedAdd(double value) {
+    sorted_.insert(
+      std::lower_bound(sorted_.begin(), sorted_.end(), value), value);
+  }
+
+  void sortedRemove(double value) {
     std::vector<double>::iterator it =
       std::lower_bound(sorted_.begin(), sorted_.end(), value);
 
@@ -729,22 +830,129 @@ public:
       sorted_.erase(it);
   }
 
-  double value() const {
-    if (!NA_RM && n_na_)
-      return NA_REAL;
-    size_t k = sorted_.size();
-    if (k == 0)
-      return NA_REAL;
-    if (LOWER)
-      return sorted_[(k - 1) / 2];
-    if (k % 2 == 0)
-      return (sorted_[k / 2 - 1] + sorted_[k / 2]) / 2;
-    return sorted_[k / 2];
+  void heapAdd(int i) {
+
+    // the dead cost nothing until they outnumber the living; then one sweep
+    // repays what they were never popped for
+    if (lower_.size() > 2 * (size_t) lower_live_ + 64)
+      compactLower();
+    if (upper_.size() > 2 * (size_t) upper_live_ + 64)
+      compactUpper();
+
+    purgeLower();
+
+    if (lower_live_ == 0 || lower_order_(i, lower_.front())) {
+      lower_.push_back(i);
+      std::push_heap(lower_.begin(), lower_.end(), lower_order_);
+      ++lower_live_;
+    } else {
+      upper_.push_back(i);
+      std::push_heap(upper_.begin(), upper_.end(), upper_order_);
+      ++upper_live_;
+    }
+
+    rebalance();
   }
 
-private:
+  void heapRemove(int i) {
+
+    // the element is still live here, so the boundary settles its side:
+    // anything at or below the lower half's live maximum is in the lower heap
+    purgeLower();
+    if (lower_live_ > 0 && !lower_order_(lower_.front(), i))
+      --lower_live_;
+    else
+      --upper_live_;
+
+    expired_before_ = i + 1;
+
+    rebalance();
+  }
+
+  double heapValue() const {
+    int k = lower_live_ + upper_live_;
+    if (k == 0)
+      return NA_REAL;
+    double lower_top = this->x_[lower_.front()];
+    if (LOWER || k % 2 == 1)
+      return lower_top;
+    return (lower_top + this->x_[upper_.front()]) / 2;
+  }
+
+  // move one live top across whenever the halves drift apart; each step
+  // shifts the counts by at most one, so one move restores the split. The
+  // closing purges leave both tops live, which value() -- const, and so
+  // unable to pop for itself -- relies on.
+  void rebalance() {
+
+    if (lower_live_ > upper_live_ + 1) {
+      purgeLower();
+      int index = lower_.front();
+      std::pop_heap(lower_.begin(), lower_.end(), lower_order_);
+      lower_.pop_back();
+      upper_.push_back(index);
+      std::push_heap(upper_.begin(), upper_.end(), upper_order_);
+      --lower_live_;
+      ++upper_live_;
+    } else if (upper_live_ > lower_live_) {
+      purgeUpper();
+      int index = upper_.front();
+      std::pop_heap(upper_.begin(), upper_.end(), upper_order_);
+      upper_.pop_back();
+      lower_.push_back(index);
+      std::push_heap(lower_.begin(), lower_.end(), lower_order_);
+      --upper_live_;
+      ++lower_live_;
+    }
+
+    purgeLower();
+    purgeUpper();
+  }
+
+  void purgeLower() {
+    while (!lower_.empty() && lower_.front() < expired_before_) {
+      std::pop_heap(lower_.begin(), lower_.end(), lower_order_);
+      lower_.pop_back();
+    }
+  }
+
+  void purgeUpper() {
+    while (!upper_.empty() && upper_.front() < expired_before_) {
+      std::pop_heap(upper_.begin(), upper_.end(), upper_order_);
+      upper_.pop_back();
+    }
+  }
+
+  void compactLower() {
+    size_t keep = 0;
+    for (size_t j = 0; j < lower_.size(); ++j)
+      if (lower_[j] >= expired_before_)
+        lower_[keep++] = lower_[j];
+    lower_.resize(keep);
+    std::make_heap(lower_.begin(), lower_.end(), lower_order_);
+  }
+
+  void compactUpper() {
+    size_t keep = 0;
+    for (size_t j = 0; j < upper_.size(); ++j)
+      if (upper_[j] >= expired_before_)
+        upper_[keep++] = upper_[j];
+    upper_.resize(keep);
+    std::make_heap(upper_.begin(), upper_.end(), upper_order_);
+  }
+
+  bool heaped_;
 
   std::vector<double> sorted_;
+
+  MedianOrder lower_order_;
+  MedianOrderReversed upper_order_;
+  std::vector<int> lower_;   // max-heap of the window's lower half
+  std::vector<int> upper_;   // min-heap of the window's upper half
+  int lower_live_;
+  int upper_live_;
+  int expired_before_;       // indices before this have left the window
+
   int n_na_;
 
 };

@@ -1,6 +1,11 @@
 
 # RcppRoll 0.3.1  (UNRELEASED)
 
+- `roll_median()` now keeps large windows in a pair of heaps meeting at the
+  median, so that sliding costs O(log n) per point rather than O(n). Windows
+  below about two hundred observations keep the sorted-window representation,
+  which remains faster there.
+
 - `roll_prod()` now slides its window incrementally rather than recomputing
   each window in full, so its cost no longer grows with the window size. The
   window is carried as two stacks of partial products -- departing values are
