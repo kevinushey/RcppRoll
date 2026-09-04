@@ -61,8 +61,10 @@ inline double prod(T const& x) {
   return std::accumulate(x.begin(), x.end(), 1.0, product<double>());
 }
 
-inline int getLeftPadding(Fill const& fill, String const& align, int n) {
-  if (!fill.filled()) return 0;
+// How far a window reaches either side of the point it is reported at. Used
+// both for the fill padding below and, by the partial routine, to work out
+// which observations a window at the edges of 'x' can actually see.
+inline int getLeftOffset(String const& align, int n) {
   if (align == "left") {
     return 0;
   } else if (align == "center") {
@@ -75,8 +77,7 @@ inline int getLeftPadding(Fill const& fill, String const& align, int n) {
   return -1; // silence compiler
 }
 
-inline int getRightPadding(Fill const& fill, String const& align, int n) {
-  if (!fill.filled()) return 0;
+inline int getRightOffset(String const& align, int n) {
   if (align == "left") {
     return n - 1;
   } else if (align == "center") {
@@ -87,6 +88,16 @@ inline int getRightPadding(Fill const& fill, String const& align, int n) {
     stop("Invalid 'align'");
   }
   return -1; // silence compiler
+}
+
+inline int getLeftPadding(Fill const& fill, String const& align, int n) {
+  if (!fill.filled()) return 0;
+  return getLeftOffset(align, n);
+}
+
+inline int getRightPadding(Fill const& fill, String const& align, int n) {
+  if (!fill.filled()) return 0;
+  return getRightOffset(align, n);
 }
 
 template <typename Callable, typename T>
@@ -107,11 +118,50 @@ T roll_vector_with(Callable f,
   if (normalize && weights.size())
     weights = Rcpp::clone(NumericVector(weights / sum(weights) * n));
 
+  // partial windows are computable at every point, so there is nothing to
+  // shorten or to pad; 'weights' is rejected upstream in this case
+  if (partial)
+    return roll_vector_with_partial(f, x, n, by, fill, align);
+
   return fill.filled() ?
     roll_vector_with_fill(f, x, n, weights, by, fill, partial, align) :
     roll_vector_with_nofill(f, x, n, weights, by, fill, partial, align)
   ;
 
+}
+
+// Windows clipped to the bounds of 'x': every point gets an answer, computed
+// over however many observations are in range. The point a window is reported
+// at is always in range itself, so a window is never empty.
+template <typename Callable, typename T>
+T roll_vector_with_partial(Callable f,
+                           T const& x,
+                           int n,
+                           int by,
+                           Fill const& fill,
+                           String const& align) {
+
+  int x_n = x.size();
+  int leftOffset  = getLeftOffset(align, n);
+  int rightOffset = getRightOffset(align, n);
+
+  T result;
+  if (by == 1) {
+    result = static_cast<T>(no_init(x_n));
+  } else {
+    // points we skip over are not computed, and 'fill' does not apply here
+    result = T(x_n, T::get_na());
+  }
+
+  for (int i = 0; i < x_n; i += by) {
+    int start = i - leftOffset;
+    int end   = i + rightOffset;
+    if (start < 0) start = 0;
+    if (end > x_n - 1) end = x_n - 1;
+    result[i] = f(x, start, end - start + 1);
+  }
+
+  return result;
 }
 
 template <typename Callable, typename T>
@@ -217,7 +267,7 @@ T roll_matrix_with(Callable f,
   int ncol = x.ncol();
 
   T output;
-  if (fill.filled()) {
+  if (partial || fill.filled()) {
     output = T(nrow, ncol);
   } else {
     output = T(nrow - n + 1, ncol);

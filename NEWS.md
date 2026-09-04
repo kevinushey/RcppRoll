@@ -1,6 +1,15 @@
 
 # RcppRoll 0.3.1  (UNRELEASED)
 
+- The `partial` argument is now implemented. With `partial = TRUE`, windows at
+  the edges of `x` are computed over however many elements are in range rather
+  than filled, so the result has one element per element of `x`. This matches
+  `zoo::rollapply(partial = TRUE)`. (#18)
+
+  `partial = TRUE` cannot be combined with `weights`, and only `TRUE` or
+  `FALSE` are accepted -- zoo's numeric "minimum observations" form is not
+  supported. `fill` does not apply, and is warned about if supplied.
+
 - `roll_var()` and `roll_sd()` now compute a weighted variance when `weights`
   is supplied, rather than the variance of the weighted values. Weights are
   treated as frequency weights, so an equal weight vector gives the same

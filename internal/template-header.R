@@ -19,7 +19,9 @@
 #' @param by Calculate at every \code{by}-th point rather than every point.
 #' @param fill Either an empty vector (no fill), or a vector (recycled to)
 #'   length 3 giving left, middle and right fills.
-#' @param partial Partial application? Currently unimplemented.
+#' @param partial Compute windows at the edges of \code{x} over however
+#'   many elements are in range, rather than filling them? Cannot be
+#'   combined with \code{weights}, and \code{fill} does not apply.
 #' @param align Align windows on the \code{"left"}, \code{"center"} or
 #'   \code{"right"}.
 #' @param normalize Normalize window weights, such that they sum to \code{n}.
