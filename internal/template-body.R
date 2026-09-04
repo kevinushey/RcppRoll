@@ -10,24 +10,7 @@ roll_%s <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
-
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
   result <- roll_%s_impl(
     x,
@@ -40,7 +23,7 @@ roll_%s <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
+  if (is.matrix(x)) colnames(result) <- colnames(x)
   result
 }
 
@@ -56,24 +39,7 @@ roll_%sr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
-
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
   result <- roll_%s_impl(
     x,
@@ -86,7 +52,7 @@ roll_%sr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
+  if (is.matrix(x)) colnames(result) <- colnames(x)
   result
 }
 
@@ -102,24 +68,7 @@ roll_%sl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
-
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
   result <- roll_%s_impl(
     x,
@@ -132,6 +81,6 @@ roll_%sl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
+  if (is.matrix(x)) colnames(result) <- colnames(x)
   result
 }

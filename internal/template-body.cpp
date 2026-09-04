@@ -10,21 +10,11 @@ SEXP roll_%s_impl(SEXP x,
              bool na_rm)
 {
   RcppRoll::Fill fill(fill_);
-  if (Rf_isMatrix(x)) {
-    if (na_rm) {
-      return RcppRoll::roll_matrix_with(
-        RcppRoll::%s_f<true>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
-    } else {
-      return RcppRoll::roll_matrix_with(
-        RcppRoll::%s_f<false>(), NumericMatrix(x), n, weights, by, fill, partial, align, normalize);
-    }
+  if (na_rm) {
+    return RcppRoll::roll_with(
+      RcppRoll::%s_f<true>(), x, n, weights, by, fill, partial, align, normalize);
   } else {
-    if (na_rm) {
-      return RcppRoll::roll_vector_with(
-        RcppRoll::%s_f<true>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
-    } else {
-      return RcppRoll::roll_vector_with(
-        RcppRoll::%s_f<false>(), NumericVector(x), n, weights, by, fill, partial, align, normalize);
-    }
+    return RcppRoll::roll_with(
+      RcppRoll::%s_f<false>(), x, n, weights, by, fill, partial, align, normalize);
   }
 }

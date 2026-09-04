@@ -27,3 +27,35 @@
 #' @param normalize Normalize window weights, such that they sum to \code{n}.
 #' @param na.rm Remove missing values?
 NULL
+
+# Argument checking shared by every wrapper below. 'missing_n' and
+# 'missing_fill' come from the caller, since missing() only speaks for the frame
+# it is called in; conditions are raised against the caller too, so that a user
+# sees the roll_* call they made rather than this helper. Returns the window
+# size to use, which 'weights' overrides when the two disagree.
+checkRollArgs <- function(n, weights, partial, missing_n, missing_fill) {
+
+  call <- sys.call(-1L)
+
+  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
+    stop(simpleError("'partial' should be TRUE or FALSE", call))
+  }
+
+  if (partial) {
+    if (!is.null(weights))
+      stop(simpleError(
+        "'partial = TRUE' is not supported together with 'weights'", call))
+    if (!missing_fill)
+      warning(simpleWarning("'fill' is ignored when 'partial = TRUE'", call))
+  }
+
+  if (!missing_n && !is.null(weights) && !isTRUE(length(weights) == n)) {
+    warning(simpleWarning(sprintf(
+      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
+      length(weights), as.integer(n)
+    ), call))
+    n <- length(weights)
+  }
+
+  n
+}
