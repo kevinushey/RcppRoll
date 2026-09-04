@@ -12,7 +12,7 @@ roll_%s <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- .Call(
+  .Call(
     C_roll_%s_impl,
     x,
     as.integer(n),
@@ -24,8 +24,6 @@ roll_%s <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  if (is.matrix(x)) colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -42,7 +40,7 @@ roll_%sr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- .Call(
+  .Call(
     C_roll_%s_impl,
     x,
     as.integer(n),
@@ -54,8 +52,6 @@ roll_%sr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  if (is.matrix(x)) colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -72,7 +68,7 @@ roll_%sl <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- .Call(
+  .Call(
     C_roll_%s_impl,
     x,
     as.integer(n),
@@ -84,6 +80,4 @@ roll_%sl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  if (is.matrix(x)) colnames(result) <- colnames(x)
-  result
 }

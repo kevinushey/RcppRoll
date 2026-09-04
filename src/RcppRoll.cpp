@@ -1634,6 +1634,17 @@ SEXP roll_matrix_with(Callable f,
   SEXP x = PROTECT(Rf_coerceVector(data, REALSXP));
   SEXP output = PROTECT(Rf_allocMatrix(REALSXP, output_nrow, ncol));
 
+  // the input's column names still apply; its row names cannot, since the
+  // output usually has a different number of rows
+  SEXP dimnames = Rf_getAttrib(data, R_DimNamesSymbol);
+  if (dimnames != R_NilValue && VECTOR_ELT(dimnames, 1) != R_NilValue) {
+    SEXP outputNames = PROTECT(Rf_allocVector(VECSXP, 2));
+    SET_VECTOR_ELT(outputNames, 0, R_NilValue);
+    SET_VECTOR_ELT(outputNames, 1, VECTOR_ELT(dimnames, 1));
+    Rf_setAttrib(output, R_DimNamesSymbol, outputNames);
+    UNPROTECT(1);
+  }
+
   double const* source = REAL(x);
   double* target = REAL(output);
 
