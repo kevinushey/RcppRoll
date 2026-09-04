@@ -15,6 +15,18 @@
 #'  \item{\code{\link{roll_var}}}
 #'  }
 #'
+#' @section Parallelization:
+#'
+#' When the package is compiled with \code{OpenMP} support, the rolling
+#' window computations are parallelized across threads. By default, the
+#' number of threads is chosen by the \code{OpenMP} runtime (typically
+#' controlled through the \code{OMP_NUM_THREADS} environment variable);
+#' it can be set explicitly with \code{options(RcppRoll.threads = <n>)},
+#' and parallelization can be disabled with
+#' \code{options(RcppRoll.threads = 1)}. Small inputs are always computed
+#' serially, and results are identical whatever the number of threads --
+#' including on builds without \code{OpenMP} support at all.
+#'
 #' @name RcppRoll
 #' @docType package
 #' @useDynLib RcppRoll, .registration = TRUE, .fixes = "C_"
