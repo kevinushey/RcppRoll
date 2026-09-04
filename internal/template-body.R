@@ -10,9 +10,15 @@ roll_%s <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!identical(partial, FALSE)) {
-    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
-    partial <- FALSE
+  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
+    stop("'partial' should be TRUE or FALSE")
+  }
+
+  if (partial) {
+    if (!is.null(weights))
+      stop("'partial = TRUE' is not supported together with 'weights'")
+    if (!missing(fill))
+      warning("'fill' is ignored when 'partial = TRUE'")
   }
 
   if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
@@ -50,9 +56,15 @@ roll_%sr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!identical(partial, FALSE)) {
-    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
-    partial <- FALSE
+  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
+    stop("'partial' should be TRUE or FALSE")
+  }
+
+  if (partial) {
+    if (!is.null(weights))
+      stop("'partial = TRUE' is not supported together with 'weights'")
+    if (!missing(fill))
+      warning("'fill' is ignored when 'partial = TRUE'")
   }
 
   if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
@@ -90,9 +102,15 @@ roll_%sl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!identical(partial, FALSE)) {
-    warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
-    partial <- FALSE
+  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
+    stop("'partial' should be TRUE or FALSE")
+  }
+
+  if (partial) {
+    if (!is.null(weights))
+      stop("'partial = TRUE' is not supported together with 'weights'")
+    if (!missing(fill))
+      warning("'fill' is ignored when 'partial = TRUE'")
   }
 
   if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {

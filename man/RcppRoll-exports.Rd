@@ -121,7 +121,9 @@ element within a window. If \code{NULL}, we take unit weights of width \code{n}.
 \item{fill}{Either an empty vector (no fill), or a vector (recycled to)
 length 3 giving left, middle and right fills.}
 
-\item{partial}{Partial application? Currently unimplemented.}
+\item{partial}{Compute windows at the edges of \code{x} over however
+many elements are in range, rather than filling them? Cannot be
+combined with \code{weights}, and \code{fill} does not apply.}
 
 \item{align}{Align windows on the \code{"left"}, \code{"center"} or
 \code{"right"}.}
