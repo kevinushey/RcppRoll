@@ -749,6 +749,103 @@ private:
 
 };
 
+// Running product behind prod(). A slid window would have to divide out each
+// departing value, and division cannot be trusted with the job: a zero has no
+// inverse, an overflow or underflow is absorbing, and even where it is
+// defined, dividing reintroduces rounding the original multiplication never
+// had. The window is carried as two stacks instead -- values multiply into a
+// running back product as they arrive, and when the oldest value must leave,
+// the back stack is flipped once into suffix products, from which each
+// removal is a pop. Every observation is touched at most twice, so a slide
+// still costs O(1) amortized, and no product outlives the observations that
+// made it: a zero or an infinity is gone from the state the moment the flip
+// walks past it.
+template <bool NA_RM>
+class ProdAccumulator :
+  public WindowAccumulator< ProdAccumulator<NA_RM> > {
+
+  typedef WindowAccumulator< ProdAccumulator<NA_RM> > Base;
+
+public:
+
+  template <typename Callable>
+  ProdAccumulator(Callable, double const* x, int n) : Base(x) {
+    if (n > 0) {
+      back_.reserve(n);
+      suffix_.reserve(n);
+    }
+    clear();
+  }
+
+  // one multiply entering and an amortized one leaving, against a
+  // from-scratch pass the compiler vectorizes well; as elsewhere, each step
+  // slides the window 'by' observations, so the crossover scales with 'by'
+  static bool worthwhile(int n, int by) { return n >= 24LL * by; }
+
+  // products are never differenced, so there is no cancellation to guard;
+  // whatever overflows or dies away is remade whole by the next flip
+  bool degraded() const { return false; }
+  bool urgent() const { return false; }
+
+  void prepare(int, int) {}
+
+  void clear() {
+    back_.clear();
+    suffix_.clear();
+    back_product_ = 1.0;
+    n_na_ = n_nan_ = 0;
+  }
+
+  void add(int i) {
+    double value = this->x_[i];
+    if (is_nan(value)) { if (ISNA(value)) ++n_na_; else ++n_nan_; return; }
+    back_.push_back(value);
+    back_product_ *= value;
+  }
+
+  void remove(int i) {
+    double value = this->x_[i];
+    if (is_nan(value)) { if (ISNA(value)) --n_na_; else --n_nan_; return; }
+
+    // out of suffixes: flip the back stack into suffix products, oldest on
+    // top, so that this and the following removals are single pops
+    if (suffix_.empty()) {
+      size_t count = back_.size();
+      suffix_.resize(count);
+      double product = 1.0;
+      for (size_t j = 0; j < count; ++j) {
+        product *= back_[count - 1 - j];
+        suffix_[j] = product;
+      }
+      back_.clear();
+      back_product_ = 1.0;
+    }
+
+    suffix_.pop_back();
+  }
+
+  double value() const {
+
+    // as for the running total: NA and NaN are counted apart so that each
+    // keeps its identity, with NA reported where multiplication order used
+    // to decide
+    if (!NA_RM && (n_na_ || n_nan_))
+      return n_na_ ? NA_REAL : R_NaN;
+
+    double front = suffix_.empty() ? 1.0 : suffix_.back();
+    return front * back_product_;
+  }
+
+private:
+
+  std::vector<double> back_;    // values since the last flip, oldest first
+  std::vector<double> suffix_;  // suffix products, the oldest value's on top
+  double back_product_;
+  int n_na_;
+  int n_nan_;
+
+};
+
 // ---------------------------------------------------------------------------
 // Windowing functions
 //
@@ -1538,6 +1635,11 @@ struct accumulator_for< min_f<NA_RM> > {
 template <bool NA_RM>
 struct accumulator_for< max_f<NA_RM> > {
   typedef ExtremumAccumulator<NA_RM, false> type;
+};
+
+template <bool NA_RM>
+struct accumulator_for< prod_f<NA_RM> > {
+  typedef ProdAccumulator<NA_RM> type;
 };
 
 template <bool NA_RM>
