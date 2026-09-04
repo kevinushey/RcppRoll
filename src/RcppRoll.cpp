@@ -286,11 +286,12 @@ public:
   }
 
   // One add and one subtract per observation entering or leaving, against a
-  // window the compiler can vectorize. Each step slides the window 'by'
-  // observations, so the crossover scales with 'by' -- and a 'by' past the
-  // crossover includes every 'by' wide enough to leave gaps, where there is
-  // nothing to carry forward at all.
-  static bool worthwhile(int n, int by) { return n >= 48LL * by; }
+  // from-scratch pass the compiler vectorizes well now that it runs over a
+  // plain pointer. Each step slides the window 'by' observations, so the
+  // crossover scales with 'by' -- and a 'by' past the crossover includes
+  // every 'by' wide enough to leave gaps, where there is nothing to carry
+  // forward at all.
+  static bool worthwhile(int n, int by) { return n >= 96LL * by; }
 
   bool degraded() const { return total_.degraded(); }
 
@@ -497,14 +498,10 @@ public:
     clear();
   }
 
-  // Maintaining the deque costs more than two comparisons would. Beyond the
-  // by = 1 case the deque loses ground faster than the sums above do -- each
-  // slid observation pays its bookkeeping, but the answer still needs the
-  // front inspected and the departures matched -- so its crossover carries a
-  // steeper measured slope.
-  static bool worthwhile(int n, int by) {
-    return by == 1 ? n >= 4 : n >= 8LL * by;
-  }
+  // maintaining the deque costs more than a handful of comparisons would,
+  // and each step slides the window 'by' observations, so the crossover
+  // scales with 'by' as for the sums above
+  static bool worthwhile(int n, int by) { return n >= 12LL * by; }
 
   // comparisons are exact, so there is nothing to lose
   bool degraded() const { return false; }
