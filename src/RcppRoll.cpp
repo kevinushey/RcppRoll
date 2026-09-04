@@ -1072,10 +1072,13 @@ struct mean_f<true> {
     double result = 0.0;
     int num = 0;
     for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result += x[offset + i];
-        ++num;
-      }
+      double value = x[offset + i];
+      bool ok = !is_nan(value);
+      // A select rather than a branch, so the loop is straight-line code.
+      // Masked-out values add -0.0, the one addend that leaves every total
+      // alone -- adding +0.0 would flip an all-negative-zero total's sign.
+      result += ok ? value : -0.0;
+      num += ok;
     }
     return result / num;
   }
@@ -1089,10 +1092,11 @@ struct mean_f<true> {
     double result = 0.0;
     double weights_sum = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result += x[offset + i] * weights[i];
-        weights_sum += weights[i];
-      }
+      double value = x[offset + i];
+      bool ok = !is_nan(value);
+      // as above, -0.0 so that a masked-out addend changes no total
+      result += ok ? value * weights[i] : -0.0;
+      weights_sum += ok ? weights[i] : -0.0;
     }
     return result / weights_sum;
   }
@@ -1153,9 +1157,10 @@ struct sum_f<true> {
   inline double operator()(double const* x, int offset, int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result += x[offset + i];
-      }
+      double value = x[offset + i];
+      // as for the mean: a select keeps the loop straight-line, and -0.0 is
+      // the addend that leaves every total alone
+      result += !is_nan(value) ? value : -0.0;
     }
     return result;
   }
@@ -1166,9 +1171,8 @@ struct sum_f<true> {
                            int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result += x[offset + i] * weights[i];
-      }
+      double value = x[offset + i];
+      result += !is_nan(value) ? value * weights[i] : -0.0;
     }
     return result;
   }
