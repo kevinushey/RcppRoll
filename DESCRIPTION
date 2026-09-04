@@ -10,6 +10,9 @@ Description: Provides fast and efficient routines for
     sum, product, minimum, maximum, standard deviation
     and variance are provided.
 License: GPL (>= 2)
+URL: https://kevinushey.github.io/RcppRoll/,
+    https://github.com/kevinushey/RcppRoll
+BugReports: https://github.com/kevinushey/RcppRoll/issues
 Depends:
     R (>= 2.15.1)
 Suggests:
