@@ -995,26 +995,13 @@ struct prod_f<false> {
   }
 };
 
-// Compute a weighted median, ignoring any NAs in the window. The weights are
-// tied to their associated values before sorting, since a weight applies to the
-// value at its own position rather than to the value that ends up sorted there.
-// 'scratch' belongs to the caller, so that a pass over many windows reuses one
-// buffer rather than allocating for each of them.
-inline double weighted_median(double const* x,
-                              int offset,
-                              double const* weights,
-                              int n,
-                              std::vector< std::pair<double, double> >& scratch) {
-
-  scratch.clear();
-  for (int i = 0; i < n; ++i) {
-    double value = x[offset + i];
-    if (!is_nan(value))
-      scratch.push_back(std::make_pair(value, weights[i]));
-  }
-
-  if (scratch.empty())
-    return NA_REAL;
+// The sorted form of the weighted median: order the window, then walk the
+// cumulative weight up to the crossing. Kept as the fallback for weights the
+// selection below cannot order -- a negative, NaN, or infinite weight makes
+// the cumulative weight non-monotonic, or not a number, and this scan's
+// crossing is then the defined answer.
+inline double weighted_median_scan(
+    std::vector< std::pair<double, double> >& scratch) {
 
   std::sort(scratch.begin(), scratch.end());
 
@@ -1036,6 +1023,122 @@ inline double weighted_median(double const* x,
   }
 
   return scratch[k].first;
+
+}
+
+// Compute a weighted median, ignoring any NAs in the window: the smallest
+// value whose cumulative weight, taken in value order, reaches half the total.
+// The weights are tied to their associated values first, since a weight
+// applies to the value at its own position rather than to the value that ends
+// up ranked there. 'scratch' and 'spare' belong to the caller, so that a pass
+// over many windows reuses two buffers rather than allocating for each window.
+//
+// Rather than sorting the window to walk its cumulative weight, this
+// partitions around a pivot and descends into the part holding the crossing:
+// expected linear time in the window size, where the sort pays an extra log
+// factor. Partitioning writes into the spare buffer rather than swapping in
+// place -- each pair is read once and written at most once, and the pivot's
+// run, which is only ever reported and never descended into, is not moved at
+// all.
+inline double weighted_median(double const* x,
+                              int offset,
+                              double const* weights,
+                              int n,
+                              std::vector< std::pair<double, double> >& scratch,
+                              std::vector< std::pair<double, double> >& spare) {
+
+  scratch.clear();
+  bool orderly = true;
+  double weights_sum = 0.0;
+  for (int i = 0; i < n; ++i) {
+    double value = x[offset + i];
+    if (is_nan(value))
+      continue;
+    double weight = weights[i];
+    if (!(weight >= 0.0) || !is_finite(weight))
+      orderly = false;
+    weights_sum += weight;
+    scratch.push_back(std::make_pair(value, weight));
+  }
+
+  if (scratch.empty())
+    return NA_REAL;
+
+  // the descent below leans on a cumulative weight that only ever grows, and
+  // on comparisons that mean what they say; a weight set (or total) that
+  // cannot promise that takes the scan
+  if (!orderly || !is_finite(weights_sum))
+    return weighted_median_scan(scratch);
+
+  // guard against an all-zero weight total, which has no crossing to find
+  if (!(weights_sum > 0))
+    return NA_REAL;
+
+  double target = weights_sum / 2;
+
+  if (spare.size() < scratch.size())
+    spare.resize(scratch.size());
+
+  std::pair<double, double>* from = &scratch[0];
+  std::pair<double, double>* into = &spare[0];
+  size_t size = scratch.size();
+  double below = 0.0; // total weight of the values ranked before 'from'
+
+  while (size > 1) {
+
+    // median-of-three pivot: windows of already-ordered data are common, and
+    // an end-of-range pivot would descend one element at a time through them
+    double a = from[0].first;
+    double b = from[size / 2].first;
+    double c = from[size - 1].first;
+    double pivot = a < b
+      ? (b < c ? b : (a < c ? c : a))
+      : (a < c ? a : (b < c ? c : b));
+
+    // split off the values below and above the pivot at the two ends of the
+    // other buffer, keeping the pivot's run whole so that repeated values
+    // cannot stall the descent
+    size_t n_lt = 0;
+    size_t n_gt = 0;
+    double weight_lt = 0.0;
+    double weight_eq = 0.0;
+
+    for (size_t i = 0; i < size; ++i) {
+      double value = from[i].first;
+      if (value < pivot) {
+        weight_lt += from[i].second;
+        into[n_lt++] = from[i];
+      } else if (pivot < value) {
+        into[size - (++n_gt)] = from[i];
+      } else {
+        weight_eq += from[i].second;
+      }
+    }
+
+    // Descend into whichever part the cumulative weight crosses half within,
+    // the buffer just read becoming the next level's writing room. The values
+    // below the pivot never hold the crossing when they are empty: reusing
+    // 'after_eq' as the next 'below' keeps the comparison that sent the
+    // descent rightwards bit-identical to the one guarding the left.
+    double after_lt = below + weight_lt;
+    double after_eq = after_lt + weight_eq;
+
+    std::pair<double, double>* room = from;
+    if (!(weights_sum - after_lt > target)) {
+      from = into;
+      size = n_lt;
+    } else if (n_gt && weights_sum - after_eq > target) {
+      below = after_eq;
+      from = into + (size - n_gt);
+      size = n_gt;
+    } else {
+      return pivot;
+    }
+    into = room;
+
+  }
+
+  return from[0].first;
 
 }
 
@@ -1089,13 +1192,15 @@ struct median_f<false> {
       if (is_nan(x[i]))
         return NA_REAL;
 
-    return weighted_median(x, offset, weights, n, weighted_scratch_);
+    return weighted_median(x, offset, weights, n,
+                           weighted_scratch_, weighted_spare_);
   }
 
 private:
 
   std::vector<double> scratch_;
   std::vector< std::pair<double, double> > weighted_scratch_;
+  std::vector< std::pair<double, double> > weighted_spare_;
 
 };
 
@@ -1119,13 +1224,15 @@ struct median_f<true> {
                            double const* weights,
                            int n) {
 
-    return weighted_median(x, offset, weights, n, weighted_scratch_);
+    return weighted_median(x, offset, weights, n,
+                           weighted_scratch_, weighted_spare_);
   }
 
 private:
 
   std::vector<double> scratch_;
   std::vector< std::pair<double, double> > weighted_scratch_;
+  std::vector< std::pair<double, double> > weighted_spare_;
 
 };
 

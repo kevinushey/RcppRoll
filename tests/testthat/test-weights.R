@@ -119,6 +119,60 @@ test_that("weighted roll_median pairs weights with their own values", {
 
 })
 
+test_that("the weighted median selection matches a sort-and-scan reference", {
+
+  reference <- function(window, weights) {
+    keep <- !is.na(window)
+    window <- window[keep]
+    weights <- weights[keep]
+    if (!length(window)) return(NA_real_)
+    ordered <- order(window)
+    window <- window[ordered]
+    weights <- weights[ordered]
+    window[which(cumsum(weights) >= sum(weights) / 2)[1]]
+  }
+
+  rolled <- function(x, w) {
+    n <- length(w)
+    windows <- seq_len(length(x) - n + 1L)
+    vapply(windows, function(i) reference(x[i:(i + n - 1L)], w), numeric(1))
+  }
+
+  # windows large enough to take the descent through several partitions;
+  # continuous weights, so no crossing lands on a knife edge
+  set.seed(654)
+  x <- rnorm(400)
+  x[sample(400, 25)] <- NA
+  w <- runif(37)
+
+  expect_equal(
+    roll_median(x, 37, weights = w, na.rm = TRUE, normalize = FALSE),
+    rolled(x, w))
+
+  # repeated values exercise the pivot's whole-run partitioning
+  y <- sample(round(rnorm(400), 1))
+  expect_equal(
+    roll_median(y, 37, weights = w, normalize = FALSE),
+    rolled(y, w))
+
+})
+
+test_that("negative weights keep the sorted scan's crossing", {
+
+  # a negative weight makes the cumulative weight non-monotonic, which the
+  # partition-based selection cannot follow; those windows take the scan
+  expect_equal(
+    roll_median(c(5, 1, 3), 3, weights = c(1, -1, 2), normalize = FALSE), 3)
+  expect_equal(
+    roll_median(c(1, 2, 3), 3, weights = c(3, -2, 1), normalize = FALSE), 1)
+
+  # an all-zero weight total still has no crossing to find
+  expect_equal(
+    roll_median(c(1, 2, 3), 3, weights = c(0, 0, 0), normalize = FALSE),
+    NA_real_)
+
+})
+
 test_that("weighted roll_median respects na.rm", {
   x <- c(1, 2, NA, 4, 5, 6, 7)
   expect_equal(roll_median(x, 3, weights = c(1, 2, 1), na.rm = TRUE),
