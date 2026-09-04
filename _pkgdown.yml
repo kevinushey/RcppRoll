@@ -1,0 +1,23 @@
+url: https://kevinushey.github.io/RcppRoll/
+
+template:
+  bootstrap: 5
+
+reference:
+- title: Rolling operations
+  desc: >
+    Windowed versions of common mathematical and statistical functions.
+    Each operation comes in three flavors: center-aligned (e.g. `roll_mean()`),
+    left-aligned (`roll_meanl()`), and right-aligned (`roll_meanr()`).
+  contents:
+  - RcppRoll-exports
+
+- title: Parallelism
+  desc: >
+    Query the number of threads used for rolling computations.
+  contents:
+  - roll_threads
+
+- title: internal
+  contents:
+  - RcppRoll
