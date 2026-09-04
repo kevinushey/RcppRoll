@@ -15,6 +15,14 @@ roll_%s <- function(x,
     partial <- FALSE
   }
 
+  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
+    warning(sprintf(
+      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
+      length(weights), as.integer(n)
+    ))
+    n <- length(weights)
+  }
+
   result <- roll_%s_impl(
     x,
     as.integer(n),
@@ -47,6 +55,14 @@ roll_%sr <- function(x,
     partial <- FALSE
   }
 
+  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
+    warning(sprintf(
+      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
+      length(weights), as.integer(n)
+    ))
+    n <- length(weights)
+  }
+
   result <- roll_%s_impl(
     x,
     as.integer(n),
@@ -77,6 +93,14 @@ roll_%sl <- function(x,
   if (!identical(partial, FALSE)) {
     warning("'partial' argument is currently unimplemented; using 'partial = FALSE'")
     partial <- FALSE
+  }
+
+  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
+    warning(sprintf(
+      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
+      length(weights), as.integer(n)
+    ))
+    n <- length(weights)
   }
 
   result <- roll_%s_impl(

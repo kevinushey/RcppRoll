@@ -22,6 +22,9 @@
   `na.rm`, and associated each weight with the sorted position of a value
   rather than with the value itself.
 
+- The `roll_*()` functions now warn when `n` and `weights` are both supplied
+  and disagree, since `weights` silently determines the window size. (#39)
+
 
 # RcppRoll 0.3.1
 
