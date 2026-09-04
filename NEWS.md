@@ -1,6 +1,11 @@
 
 # RcppRoll 0.3.1  (UNRELEASED)
 
+- Matrices whose columns are too short to split into chunks are now
+  parallelized across their columns instead, so wide matrices benefit from
+  OpenMP too. As before, results are identical whatever the number of
+  threads.
+
 - `roll_median()` now keeps large windows in a pair of heaps meeting at the
   median, so that sliding costs O(log n) per point rather than O(n). Windows
   below about two hundred observations keep the sorted-window representation,
