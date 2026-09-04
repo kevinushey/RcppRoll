@@ -55,6 +55,23 @@ test_that("chunked window walks agree with per-window computation", {
 
 })
 
+test_that("roll_threads() reports the thread count", {
+
+  old <- options(RcppRoll.threads = NULL)
+  on.exit(options(old), add = TRUE)
+
+  threads <- roll_threads()
+  expect_true(is.integer(threads) && length(threads) == 1L)
+  expect_true(is.na(threads) || threads >= 1L)
+
+  # the option pins the count where OpenMP is available
+  if (!is.na(threads)) {
+    options(RcppRoll.threads = 3)
+    expect_identical(roll_threads(), 3L)
+  }
+
+})
+
 test_that("results do not depend on the number of threads", {
 
   old <- options(RcppRoll.threads = NULL)

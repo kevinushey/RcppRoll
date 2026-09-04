@@ -27,6 +27,11 @@
 #' serially, and results are identical whatever the number of threads --
 #' including on builds without \code{OpenMP} support at all.
 #'
+#' Use \code{\link{roll_threads}()} to check how many threads are in use,
+#' or whether the installed package has \code{OpenMP} support at all. The
+#' package also reports this when attached; suppress that message with
+#' \code{options(RcppRoll.quiet = TRUE)}.
+#'
 #' @name RcppRoll
 #' @docType package
 #' @useDynLib RcppRoll, .registration = TRUE, .fixes = "C_"

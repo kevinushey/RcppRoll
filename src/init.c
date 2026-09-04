@@ -29,6 +29,7 @@ extern SEXP roll_sum_impl(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP roll_sd_impl(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP roll_var_impl(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP na_locf(SEXP);
+extern SEXP roll_threads_impl(void);
 
 static const R_CallMethodDef callEntries[] = {
   { "roll_mean_impl",   (DL_FUNC) &roll_mean_impl,   9 },
@@ -40,6 +41,7 @@ static const R_CallMethodDef callEntries[] = {
   { "roll_sd_impl",     (DL_FUNC) &roll_sd_impl,     9 },
   { "roll_var_impl",    (DL_FUNC) &roll_var_impl,    9 },
   { "na_locf",          (DL_FUNC) &na_locf,          1 },
+  { "roll_threads_impl", (DL_FUNC) &roll_threads_impl, 0 },
   { NULL, NULL, 0 }
 };
 

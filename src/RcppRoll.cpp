@@ -2029,6 +2029,20 @@ extern "C" SEXP na_locf(SEXP x)
   return output;
 }
 
+// The number of threads the window drivers would put to work on a large
+// enough input, or NA when the package was compiled without OpenMP support.
+// Exposed as roll_threads(), so users can check what a source build ended
+// up with.
+extern "C" SEXP roll_threads_impl(void)
+{
+#ifdef _OPENMP
+  int threads = RcppRoll::rcpproll_forked ? 1 : RcppRoll::requestedThreads();
+  return Rf_ScalarInteger(threads);
+#else
+  return Rf_ScalarInteger(NA_INTEGER);
+#endif
+}
+
 // Begin auto-generated exports (internal/make-exports.R)
 
 extern "C" SEXP roll_mean_impl(SEXP x,

@@ -10,6 +10,12 @@
   results are identical whatever the number of threads -- including on
   builds without OpenMP support at all.
 
+- The new `roll_threads()` function reports the number of threads in use,
+  or NA when the package was compiled without OpenMP support. The package
+  reports this on attach as well; suppress the startup message with
+  `options(RcppRoll.quiet = TRUE)`. Instructions for enabling OpenMP when
+  installing from sources on macOS are in the README.
+
 - The `partial` argument is now implemented. With `partial = TRUE`, windows at
   the edges of `x` are computed over however many elements are in range rather
   than filled, so the result has one element per element of `x`. This matches
