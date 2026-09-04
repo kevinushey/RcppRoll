@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <deque>
 #include <utility>
 #include <vector>
 
@@ -594,8 +593,11 @@ private:
 
 // Monotonic deque of candidate indices behind min() and max(): the front is
 // always the extremum of the current window, and an index is dropped as soon
-// as a later observation beats it. Ties are broken the way the from-scratch
-// loops broke them, so that the sign of a zero carries through unchanged.
+// as a later observation beats it. A window of n observations never holds an
+// index twice, so the deque lives in a ring over a buffer sized once at
+// construction -- no allocation, and no chunked indirection, on the hot path.
+// Ties are broken the way the from-scratch loops broke them, so that the
+// sign of a zero carries through unchanged.
 template <bool NA_RM, bool IS_MIN>
 class ExtremumAccumulator :
   public WindowAccumulator< ExtremumAccumulator<NA_RM, IS_MIN> > {
@@ -605,7 +607,8 @@ class ExtremumAccumulator :
 public:
 
   template <typename Callable>
-  ExtremumAccumulator(Callable, double const* x, int) : Base(x) {
+  ExtremumAccumulator(Callable, double const* x, int n) : Base(x) {
+    candidates_.resize(n > 0 ? n : 1);
     clear();
   }
 
@@ -621,31 +624,35 @@ public:
   void prepare(int, int) {}
 
   void clear() {
-    candidates_.clear();
+    head_ = 0;
+    count_ = 0;
     n_na_ = 0;
   }
 
   void add(int i) {
     double value = this->x_[i];
     if (is_nan(value)) { ++n_na_; return; }
-    while (!candidates_.empty() && beats(value, this->x_[candidates_.back()]))
-      candidates_.pop_back();
-    candidates_.push_back(i);
+    while (count_ && beats(value, this->x_[back()]))
+      --count_;
+    candidates_[wrap(head_ + count_)] = i;
+    ++count_;
   }
 
   void remove(int i) {
     if (is_nan(this->x_[i])) { --n_na_; return; }
-    if (!candidates_.empty() && candidates_.front() == i)
-      candidates_.pop_front();
+    if (count_ && candidates_[head_] == i) {
+      head_ = wrap(head_ + 1);
+      --count_;
+    }
   }
 
   double value() const {
     if (!NA_RM && n_na_)
       return NA_REAL;
     // an empty window keeps the identity the from-scratch loops started from
-    if (candidates_.empty())
+    if (count_ == 0)
       return IS_MIN ? R_PosInf : R_NegInf;
-    return this->x_[candidates_.front()];
+    return this->x_[candidates_[head_]];
   }
 
 private:
@@ -655,7 +662,19 @@ private:
     return IS_MIN ? candidate < incumbent : candidate >= incumbent;
   }
 
-  std::deque<int> candidates_;
+  // positions reach at most one lap past the buffer, so one subtraction wraps
+  size_t wrap(size_t position) const {
+    size_t size = candidates_.size();
+    return position >= size ? position - size : position;
+  }
+
+  int back() const {
+    return candidates_[wrap(head_ + count_ - 1)];
+  }
+
+  std::vector<int> candidates_;
+  size_t head_;
+  size_t count_;
   int n_na_;
 
 };
@@ -2384,6 +2403,21 @@ SEXP roll_with(Callable f,
 
 extern "C" SEXP na_locf(SEXP x)
 {
+  // a double vector with nothing missing is its own answer -- return it
+  // rather than copying it
+  if (TYPEOF(x) == REALSXP)
+  {
+    double const* data = REAL(x);
+    R_xlen_t n = Rf_xlength(x);
+
+    R_xlen_t i = 0;
+    while (i < n && !RcppRoll::is_nan(data[i]))
+      ++i;
+
+    if (i == n)
+      return x;
+  }
+
   SEXP output = PROTECT(
     TYPEOF(x) == REALSXP ? Rf_duplicate(x) : Rf_coerceVector(x, REALSXP));
 
