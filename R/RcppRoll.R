@@ -18,7 +18,7 @@
 #'   element within a window. If \code{NULL}, we take unit weights of width \code{n}.
 #' @param by Calculate at every \code{by}-th point rather than every point.
 #' @param fill Either an empty vector (no fill), or a vector (recycled to)
-#'   length 3 giving left, middle and right fills.
+#'   length 3 giving left, center and right fills.
 #' @param partial Compute windows at the edges of \code{x} over however
 #'   many elements are in range, rather than filling them? Cannot be
 #'   combined with \code{weights}, and \code{fill} does not apply.
