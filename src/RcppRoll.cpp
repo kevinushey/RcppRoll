@@ -1287,10 +1287,12 @@ struct max_f<true> {
                            double const* weights,
                            int n) {
     double result = R_NegInf;
+    // '>=' rather than the inverted '<', so that a NaN loses the comparison
+    // and skips itself while a tie still takes the later value -- max has
+    // always kept the later of two equal values, signed zeros included
     for (int i = 0; i < n; ++i) {
-      if (is_nan(x[offset + i])) continue;
 #define VALUE (x[offset + i] * weights[i])
-      result = VALUE < result ? result : VALUE;
+      result = VALUE >= result ? VALUE : result;
 #undef VALUE
     }
     return result;
@@ -1301,8 +1303,8 @@ struct max_f<true> {
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
-      if (is_nan(x[offset + i])) continue;
-      result = x[offset + i] < result ? result : x[offset + i];
+      double value = x[offset + i];
+      result = value >= result ? value : result;
     }
     return result;
   }
