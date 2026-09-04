@@ -1,6 +1,12 @@
 
 # RcppRoll 0.3.1  (UNRELEASED)
 
+- The window loops that dominate small-window calls have been rewritten
+  branchlessly where measurement showed a win, with bit-identical results:
+  `roll_sum()` and `roll_mean()` with `na.rm = TRUE` run 1.4-2.5x faster,
+  `roll_max()` with `na.rm = TRUE` 1.4-1.8x faster, and the weighted
+  `roll_median()` about 1.8x faster.
+
 - `roll_median()` now keeps large windows in a pair of heaps meeting at the
   median, so that sliding costs O(log n) per point rather than O(n). Windows
   below about two hundred observations keep the sorted-window representation,
