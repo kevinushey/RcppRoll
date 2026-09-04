@@ -341,7 +341,7 @@ public:
   // crossover scales with 'by' -- and a 'by' past the crossover includes
   // every 'by' wide enough to leave gaps, where there is nothing to carry
   // forward at all.
-  static bool worthwhile(int n, int by) { return n >= 96LL * by; }
+  static bool worthwhile(int n, int by) { return n >= 56LL * by; }
 
   bool degraded() const { return total_.degraded(); }
 
@@ -423,7 +423,7 @@ public:
 
   // two running sums against two passes over the window, so this pays off
   // sooner than a plain total does; as above, the crossover scales with 'by'
-  static bool worthwhile(int n, int by) { return n >= 12LL * by; }
+  static bool worthwhile(int n, int by) { return n >= 16LL * by; }
 
   bool degraded() const {
 
@@ -556,10 +556,10 @@ public:
     clear();
   }
 
-  // maintaining the deque costs more than a handful of comparisons would,
-  // and each step slides the window 'by' observations, so the crossover
-  // scales with 'by' as for the sums above
-  static bool worthwhile(int n, int by) { return n >= 12LL * by; }
+  // maintaining the deque costs more than a stretch of comparisons the
+  // compiler can turn into branchless minimums; each step slides the window
+  // 'by' observations, so the crossover scales with 'by' as above
+  static bool worthwhile(int n, int by) { return n >= 32LL * by; }
 
   // comparisons are exact, so there is nothing to lose
   bool degraded() const { return false; }
