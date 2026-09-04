@@ -27,6 +27,45 @@
 #' @param normalize Normalize window weights, such that they sum to \code{n}.
 #' @param na.rm Remove missing values?
 NULL
+
+# Argument checking shared by every wrapper below. 'missing_n' and
+# 'missing_fill' come from the caller, since missing() only speaks for the frame
+# it is called in; conditions are raised against the caller too, so that a user
+# sees the roll_* call they made rather than this helper. Returns the window
+# size to use, which 'weights' overrides when the two disagree.
+checkRollArgs <- function(n, weights, partial, missing_n, missing_fill) {
+
+  call <- sys.call(-1L)
+
+  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
+    stop(simpleError("'partial' should be TRUE or FALSE", call))
+  }
+
+  if (partial) {
+    if (!is.null(weights))
+      stop(simpleError(
+        "'partial = TRUE' is not supported together with 'weights'", call))
+    if (!missing_fill)
+      warning(simpleWarning("'fill' is ignored when 'partial = TRUE'", call))
+  }
+
+  if (!missing_n && !is.null(weights) && !isTRUE(length(weights) == n)) {
+    warning(simpleWarning(sprintf(
+      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
+      length(weights), as.integer(n)
+    ), call))
+    n <- length(weights)
+  }
+
+  # checked after 'weights' has had its say, since empty weights would
+  # otherwise smuggle in a window of size zero
+  n <- as.integer(n)[1L]
+  if (!isTRUE(n >= 1L)) {
+    stop(simpleError("'n' should be a positive integer", call))
+  }
+
+  n
+}
 #' @rdname RcppRoll-exports
 #' @export
 roll_mean <- function(x,
@@ -39,26 +78,10 @@ roll_mean <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_mean_impl(
+  .Call(
+    C_roll_mean_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -69,8 +92,6 @@ roll_mean <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -85,26 +106,10 @@ roll_meanr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_mean_impl(
+  .Call(
+    C_roll_mean_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -115,8 +120,6 @@ roll_meanr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -131,26 +134,10 @@ roll_meanl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_mean_impl(
+  .Call(
+    C_roll_mean_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -161,8 +148,6 @@ roll_meanl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -176,26 +161,10 @@ roll_median <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_median_impl(
+  .Call(
+    C_roll_median_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -206,8 +175,6 @@ roll_median <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -222,26 +189,10 @@ roll_medianr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_median_impl(
+  .Call(
+    C_roll_median_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -252,8 +203,6 @@ roll_medianr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -268,26 +217,10 @@ roll_medianl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_median_impl(
+  .Call(
+    C_roll_median_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -298,8 +231,6 @@ roll_medianl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -313,26 +244,10 @@ roll_min <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_min_impl(
+  .Call(
+    C_roll_min_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -343,8 +258,6 @@ roll_min <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -359,26 +272,10 @@ roll_minr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_min_impl(
+  .Call(
+    C_roll_min_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -389,8 +286,6 @@ roll_minr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -405,26 +300,10 @@ roll_minl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_min_impl(
+  .Call(
+    C_roll_min_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -435,8 +314,6 @@ roll_minl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -450,26 +327,10 @@ roll_max <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_max_impl(
+  .Call(
+    C_roll_max_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -480,8 +341,6 @@ roll_max <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -496,26 +355,10 @@ roll_maxr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_max_impl(
+  .Call(
+    C_roll_max_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -526,8 +369,6 @@ roll_maxr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -542,26 +383,10 @@ roll_maxl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_max_impl(
+  .Call(
+    C_roll_max_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -572,8 +397,6 @@ roll_maxl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -587,26 +410,10 @@ roll_prod <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_prod_impl(
+  .Call(
+    C_roll_prod_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -617,8 +424,6 @@ roll_prod <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -633,26 +438,10 @@ roll_prodr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_prod_impl(
+  .Call(
+    C_roll_prod_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -663,8 +452,6 @@ roll_prodr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -679,26 +466,10 @@ roll_prodl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_prod_impl(
+  .Call(
+    C_roll_prod_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -709,8 +480,6 @@ roll_prodl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -724,26 +493,10 @@ roll_sum <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_sum_impl(
+  .Call(
+    C_roll_sum_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -754,8 +507,6 @@ roll_sum <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -770,26 +521,10 @@ roll_sumr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_sum_impl(
+  .Call(
+    C_roll_sum_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -800,8 +535,6 @@ roll_sumr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -816,26 +549,10 @@ roll_suml <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_sum_impl(
+  .Call(
+    C_roll_sum_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -846,8 +563,6 @@ roll_suml <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -861,26 +576,10 @@ roll_sd <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_sd_impl(
+  .Call(
+    C_roll_sd_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -891,8 +590,6 @@ roll_sd <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -907,26 +604,10 @@ roll_sdr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_sd_impl(
+  .Call(
+    C_roll_sd_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -937,8 +618,6 @@ roll_sdr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -953,26 +632,10 @@ roll_sdl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_sd_impl(
+  .Call(
+    C_roll_sd_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -983,8 +646,6 @@ roll_sdl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 #' @rdname RcppRoll-exports
 #' @export
@@ -998,26 +659,10 @@ roll_var <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_var_impl(
+  .Call(
+    C_roll_var_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -1028,8 +673,6 @@ roll_var <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -1044,26 +687,10 @@ roll_varr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_var_impl(
+  .Call(
+    C_roll_var_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -1074,8 +701,6 @@ roll_varr <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }
 
 ##' @rdname RcppRoll-exports
@@ -1090,26 +715,10 @@ roll_varl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop("'partial' should be TRUE or FALSE")
-  }
+  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  if (partial) {
-    if (!is.null(weights))
-      stop("'partial = TRUE' is not supported together with 'weights'")
-    if (!missing(fill))
-      warning("'fill' is ignored when 'partial = TRUE'")
-  }
-
-  if (!missing(n) && !is.null(weights) && !isTRUE(length(weights) == n)) {
-    warning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
-    ))
-    n <- length(weights)
-  }
-
-  result <- roll_var_impl(
+  .Call(
+    C_roll_var_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -1120,6 +729,4 @@ roll_varl <- function(x,
     as.logical(normalize),
     as.logical(na.rm)
   )
-  colnames(result) <- colnames(x)
-  result
 }

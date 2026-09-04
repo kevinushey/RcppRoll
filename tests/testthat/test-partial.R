@@ -42,6 +42,16 @@ test_that("partial windows match zoo::rollapply(partial = TRUE)", {
 
 })
 
+test_that("an outsized 'n' computes without reserving what it cannot use", {
+
+  # windows are clipped to the data, so a huge nominal 'n' must not size any
+  # buffer -- the median accumulator once reserved 'n' doubles for this
+  x <- as.numeric(1:10)
+  expect_equal(roll_median(x, n = 2e8, partial = TRUE), rep(5.5, 10))
+  expect_equal(roll_sum(x, n = 2e8, partial = TRUE), rep(55, 10))
+
+})
+
 test_that("partial output has one element per input element", {
 
   x <- rnorm(14)
