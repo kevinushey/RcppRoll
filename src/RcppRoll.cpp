@@ -235,7 +235,7 @@ class WindowAccumulator {
 public:
 
   WindowAccumulator(double const* x)
-    : x_(x), start_(0), end_(-1) {}
+    : x_(x), start_(0), end_(-1), credit_(0) {}
 
   double compute(int start, int end) {
 
@@ -251,21 +251,33 @@ public:
     while (start_ < start) {
       self.remove(start_);
       ++start_;
+      ++credit_;
     }
 
     while (end_ < end) {
       ++end_;
       self.add(end_);
+      ++credit_;
     }
 
     // Sliding a window subtracts values that were added earlier, which no
     // amount of care makes safe when the window spans magnitudes far enough
     // apart. Where that has happened, fall back to reading the window itself.
+    //
+    // A total that is merely ill-conditioned earns that rebuild at most once
+    // per window's worth of slides: compensated arithmetic loses so little
+    // per operation that rebuilding more often cannot change the digits, and
+    // data whose windows genuinely cancel -- where the check would otherwise
+    // fire at every point forever -- would pay a full rebuild each time. A
+    // total that has stopped being a number at all is rebuilt immediately.
     if (start_ <= end_ && self.degraded()) {
-      self.clear();
-      self.prepare(start_, end_);
-      for (int i = start_; i <= end_; ++i)
-        self.add(i);
+      if (self.urgent() || credit_ >= end_ - start_ + 1) {
+        self.clear();
+        self.prepare(start_, end_);
+        for (int i = start_; i <= end_; ++i)
+          self.add(i);
+        credit_ = 0;
+      }
     }
 
     return self.value();
@@ -276,6 +288,7 @@ protected:
   double const* x_;
   int start_;
   int end_;
+  int credit_;
 
 };
 
@@ -327,6 +340,10 @@ public:
   static bool worthwhile(int n, int by) { return n >= 96LL * by; }
 
   bool degraded() const { return total_.degraded(); }
+
+  // an overflowed or NaN total is not stale digits but a wrong value, and
+  // removals can never repair it -- it must not wait for rebuild credit
+  bool urgent() const { return !is_finite(total_.value()); }
 
   void prepare(int, int) {}
 
@@ -416,6 +433,12 @@ public:
     // in for. Once the two terms are of a size, re-centre on the window.
     double s1 = s1_.value();
     return s1 * s1 > 0.25 * n_finite_ * s2_.value();
+  }
+
+  // as for the running total: a non-finite sum of squares is a wrong value,
+  // not lost precision, and only a rebuild recovers it
+  bool urgent() const {
+    return !is_finite(s1_.value()) || !is_finite(s2_.value());
   }
 
   // Centre on the window's own mean. Deviations are then as small as they can
@@ -536,6 +559,7 @@ public:
 
   // comparisons are exact, so there is nothing to lose
   bool degraded() const { return false; }
+  bool urgent() const { return false; }
 
   void prepare(int, int) {}
 
@@ -606,6 +630,7 @@ public:
 
   // the window is carried in full rather than summarized, so likewise
   bool degraded() const { return false; }
+  bool urgent() const { return false; }
 
   void prepare(int, int) {}
 
