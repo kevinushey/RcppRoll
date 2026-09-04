@@ -44,6 +44,7 @@ package also reports this when attached; suppress that message with
 \seealso{
 Useful links:
 \itemize{
+  \item \url{https://kevinushey.github.io/RcppRoll/}
   \item \url{https://github.com/kevinushey/RcppRoll}
   \item Report bugs at \url{https://github.com/kevinushey/RcppRoll/issues}
 }

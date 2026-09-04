@@ -35,8 +35,7 @@
   windows to more than 150x for large ones, and an OpenMP build multiplies
   that by roughly the core count: `roll_median()` with a 500-element window
   drops from 13 seconds to 77 milliseconds single-threaded, and to 9
-  milliseconds on a 14-thread laptop. The script behind these numbers is in
-  `internal/benchmark.R`.
+  milliseconds on a 14-thread laptop.
 
 - Rolling windows are now computed incrementally where the operation admits
   it: a window carries its state forward and pays only for the observations
