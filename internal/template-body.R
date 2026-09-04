@@ -12,7 +12,8 @@ roll_%s <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_%s_impl(
+  result <- .Call(
+    C_roll_%s_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -41,7 +42,8 @@ roll_%sr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_%s_impl(
+  result <- .Call(
+    C_roll_%s_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -70,7 +72,8 @@ roll_%sl <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_%s_impl(
+  result <- .Call(
+    C_roll_%s_impl,
     x,
     as.integer(n),
     as.numeric(weights),

@@ -73,7 +73,8 @@ roll_mean <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_mean_impl(
+  result <- .Call(
+    C_roll_mean_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -102,7 +103,8 @@ roll_meanr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_mean_impl(
+  result <- .Call(
+    C_roll_mean_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -131,7 +133,8 @@ roll_meanl <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_mean_impl(
+  result <- .Call(
+    C_roll_mean_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -159,7 +162,8 @@ roll_median <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_median_impl(
+  result <- .Call(
+    C_roll_median_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -188,7 +192,8 @@ roll_medianr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_median_impl(
+  result <- .Call(
+    C_roll_median_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -217,7 +222,8 @@ roll_medianl <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_median_impl(
+  result <- .Call(
+    C_roll_median_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -245,7 +251,8 @@ roll_min <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_min_impl(
+  result <- .Call(
+    C_roll_min_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -274,7 +281,8 @@ roll_minr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_min_impl(
+  result <- .Call(
+    C_roll_min_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -303,7 +311,8 @@ roll_minl <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_min_impl(
+  result <- .Call(
+    C_roll_min_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -331,7 +340,8 @@ roll_max <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_max_impl(
+  result <- .Call(
+    C_roll_max_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -360,7 +370,8 @@ roll_maxr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_max_impl(
+  result <- .Call(
+    C_roll_max_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -389,7 +400,8 @@ roll_maxl <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_max_impl(
+  result <- .Call(
+    C_roll_max_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -417,7 +429,8 @@ roll_prod <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_prod_impl(
+  result <- .Call(
+    C_roll_prod_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -446,7 +459,8 @@ roll_prodr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_prod_impl(
+  result <- .Call(
+    C_roll_prod_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -475,7 +489,8 @@ roll_prodl <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_prod_impl(
+  result <- .Call(
+    C_roll_prod_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -503,7 +518,8 @@ roll_sum <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_sum_impl(
+  result <- .Call(
+    C_roll_sum_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -532,7 +548,8 @@ roll_sumr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_sum_impl(
+  result <- .Call(
+    C_roll_sum_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -561,7 +578,8 @@ roll_suml <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_sum_impl(
+  result <- .Call(
+    C_roll_sum_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -589,7 +607,8 @@ roll_sd <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_sd_impl(
+  result <- .Call(
+    C_roll_sd_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -618,7 +637,8 @@ roll_sdr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_sd_impl(
+  result <- .Call(
+    C_roll_sd_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -647,7 +667,8 @@ roll_sdl <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_sd_impl(
+  result <- .Call(
+    C_roll_sd_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -675,7 +696,8 @@ roll_var <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_var_impl(
+  result <- .Call(
+    C_roll_var_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -704,7 +726,8 @@ roll_varr <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_var_impl(
+  result <- .Call(
+    C_roll_var_impl,
     x,
     as.integer(n),
     as.numeric(weights),
@@ -733,7 +756,8 @@ roll_varl <- function(x,
 {
   n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
 
-  result <- roll_var_impl(
+  result <- .Call(
+    C_roll_var_impl,
     x,
     as.integer(n),
     as.numeric(weights),

@@ -17,7 +17,6 @@
 #'
 #' @name RcppRoll
 #' @docType package
-#' @useDynLib RcppRoll, .registration = TRUE
-#' @importFrom Rcpp evalCpp
+#' @useDynLib RcppRoll, .registration = TRUE, .fixes = "C_"
 NULL
 

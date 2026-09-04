@@ -1,11 +1,16 @@
-#include <Rcpp.h>
+#define R_NO_REMAP
+#include <R.h>
+#include <Rinternals.h>
 
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 #include <deque>
 #include <utility>
 #include <vector>
 
-using namespace Rcpp;
+// Errors longjmp past any C++ frames on the stack, so every Rf_error() here
+// fires while validating arguments, before any object owning memory is live.
 
 namespace RcppRoll {
 
@@ -13,26 +18,27 @@ class Fill {
 
 public:
 
-Fill (NumericVector const& vector) {
+Fill (SEXP vector) {
   switch (Rf_length(vector)) {
     case 0: {
       filled_ = false;
       break;
     }
     case 1: {
-      left_ = middle_ = right_ = vector[0];
+      left_ = middle_ = right_ = REAL(vector)[0];
       filled_ = true;
       break;
     }
     case 3: {
-      left_ = vector[0];
-      middle_ = vector[1];
-      right_ = vector[2];
+      double const* data = REAL(vector);
+      left_ = data[0];
+      middle_ = data[1];
+      right_ = data[2];
       filled_ = true;
       break;
     }
     default: {
-      stop("'fill' should be a vector of size 0, 1, or 3");
+      Rf_error("'fill' should be a vector of size 0, 1, or 3");
     }
   }
 }
@@ -58,38 +64,38 @@ private:
 // How far a window reaches either side of the point it is reported at. Used
 // both for the fill padding below and, by the partial routine, to work out
 // which observations a window at the edges of 'x' can actually see.
-inline int getLeftOffset(String const& align, int n) {
-  if (align == "left") {
+inline int getLeftOffset(char const* align, int n) {
+  if (strcmp(align, "left") == 0) {
     return 0;
-  } else if (align == "center") {
+  } else if (strcmp(align, "center") == 0) {
     return (n - 1) / 2; // round down
-  } else if (align == "right") {
+  } else if (strcmp(align, "right") == 0) {
     return n - 1;
   } else {
-    stop("Invalid 'align'");
+    Rf_error("Invalid 'align'");
   }
   return -1; // silence compiler
 }
 
-inline int getRightOffset(String const& align, int n) {
-  if (align == "left") {
+inline int getRightOffset(char const* align, int n) {
+  if (strcmp(align, "left") == 0) {
     return n - 1;
-  } else if (align == "center") {
+  } else if (strcmp(align, "center") == 0) {
     return n / 2;
-  } else if (align == "right") {
+  } else if (strcmp(align, "right") == 0) {
     return 0;
   } else {
-    stop("Invalid 'align'");
+    Rf_error("Invalid 'align'");
   }
   return -1; // silence compiler
 }
 
-inline int getLeftPadding(Fill const& fill, String const& align, int n) {
+inline int getLeftPadding(Fill const& fill, char const* align, int n) {
   if (!fill.filled()) return 0;
   return getLeftOffset(align, n);
 }
 
-inline int getRightPadding(Fill const& fill, String const& align, int n) {
+inline int getRightPadding(Fill const& fill, char const* align, int n) {
   if (!fill.filled()) return 0;
   return getRightOffset(align, n);
 }
@@ -106,12 +112,23 @@ inline int rollOutputSize(int x_n, int n, int by, Fill const& fill, bool partial
 // 'normalize' rescales the weights so that they sum to 'n'. Done once here
 // rather than once per column of a matrix, and without touching the caller's
 // vector.
-inline NumericVector normalizeWeights(NumericVector const& weights,
-                                      int n,
-                                      bool normalize) {
-  if (!normalize || !weights.size())
-    return weights;
-  return NumericVector(weights / sum(weights) * n);
+inline std::vector<double> normalizeWeights(double const* weights,
+                                            int weights_n,
+                                            int n,
+                                            bool normalize) {
+
+  std::vector<double> scaled(weights, weights + weights_n);
+  if (!normalize || !weights_n)
+    return scaled;
+
+  double total = 0.0;
+  for (int i = 0; i < weights_n; ++i)
+    total += weights[i];
+
+  for (int i = 0; i < weights_n; ++i)
+    scaled[i] = weights[i] / total * n;
+
+  return scaled;
 }
 
 // sqrt() would turn NA_REAL into a plain NaN, so pass non-values through
@@ -1350,7 +1367,7 @@ void roll_vector_partial_into(Callable f,
                               double* output,
                               int n,
                               int by,
-                              String const& align) {
+                              char const* align) {
 
   int leftOffset  = getLeftOffset(align, n);
   int rightOffset = getRightOffset(align, n);
@@ -1419,7 +1436,7 @@ void roll_vector_fill_into(Callable f,
                            int weights_n,
                            int by,
                            Fill const& fill,
-                           String const& align) {
+                           char const* align) {
 
   if (x_n < n) {
     std::fill(output, output + x_n, NA_REAL);
@@ -1539,7 +1556,7 @@ void roll_vector_into(Callable f,
                       int by,
                       Fill const& fill,
                       bool partial,
-                      String const& align) {
+                      char const* align) {
 
   // partial windows are computable at every point, so there is nothing to
   // shorten or to pad; 'weights' is rejected upstream in this case
@@ -1554,54 +1571,62 @@ void roll_vector_into(Callable f,
 }
 
 template <typename Callable>
-NumericVector roll_vector_with(Callable f,
-                               NumericVector const& x,
-                               int n,
-                               NumericVector const& weights,
-                               int by,
-                               Fill const& fill,
-                               bool partial,
-                               String const& align) {
+SEXP roll_vector_with(Callable f,
+                      SEXP data,
+                      int n,
+                      double const* weights,
+                      int weights_n,
+                      int by,
+                      Fill const& fill,
+                      bool partial,
+                      char const* align) {
 
-  NumericVector output =
-    no_init(rollOutputSize(x.size(), n, by, fill, partial));
+  SEXP x = PROTECT(Rf_coerceVector(data, REALSXP));
+  int x_n = Rf_length(x);
+
+  SEXP output =
+    PROTECT(Rf_allocVector(REALSXP, rollOutputSize(x_n, n, by, fill, partial)));
 
   roll_vector_into(
-    f, x.begin(), x.size(), output.begin(),
-    n, weights.begin(), weights.size(), by, fill, partial, align);
+    f, REAL(x), x_n, REAL(output),
+    n, weights, weights_n, by, fill, partial, align);
 
+  UNPROTECT(2);
   return output;
 }
 
-// A NumericMatrix keeps its data column-major and contiguous, so each column
-// can be handed over as a pointer and its results written straight into the
-// output -- no per-column allocation, and no copying in or out.
+// A matrix keeps its data column-major and contiguous, so each column can be
+// handed over as a pointer and its results written straight into the output
+// -- no per-column allocation, and no copying in or out.
 template <typename Callable>
-NumericMatrix roll_matrix_with(Callable f,
-                               NumericMatrix x,
-                               int n,
-                               NumericVector const& weights,
-                               int by,
-                               Fill const& fill,
-                               bool partial,
-                               String const& align) {
+SEXP roll_matrix_with(Callable f,
+                      SEXP data,
+                      int n,
+                      double const* weights,
+                      int weights_n,
+                      int by,
+                      Fill const& fill,
+                      bool partial,
+                      char const* align) {
 
-  int nrow = x.nrow();
-  int ncol = x.ncol();
+  int nrow = Rf_nrows(data);
+  int ncol = Rf_ncols(data);
   int output_nrow = rollOutputSize(nrow, n, by, fill, partial);
 
-  NumericMatrix output(output_nrow, ncol);
+  SEXP x = PROTECT(Rf_coerceVector(data, REALSXP));
+  SEXP output = PROTECT(Rf_allocMatrix(REALSXP, output_nrow, ncol));
 
-  double const* source = x.begin();
-  double* target = output.begin();
+  double const* source = REAL(x);
+  double* target = REAL(output);
 
   for (int j = 0; j < ncol; ++j) {
     roll_vector_into(f, source + (R_xlen_t) j * nrow, nrow,
                      target + (R_xlen_t) j * output_nrow,
-                     n, weights.begin(), weights.size(), by,
+                     n, weights, weights_n, by,
                      fill, partial, align);
   }
 
+  UNPROTECT(2);
   return output;
 }
 
@@ -1611,209 +1636,242 @@ template <typename Callable>
 SEXP roll_with(Callable f,
                SEXP data,
                int n,
-               NumericVector const& weights,
+               SEXP weights,
                int by,
                Fill const& fill,
                bool partial,
-               String const& align,
+               char const* align,
                bool normalize) {
 
-  // Normalize 'n' to match that of weights
-  if (weights.size())
-    n = weights.size();
+  if (!Rf_isNumeric(data))
+    Rf_error("'x' should be a numeric vector or matrix");
 
-  NumericVector scaled = normalizeWeights(weights, n, normalize);
+  // Normalize 'n' to match that of weights
+  int weights_n = Rf_length(weights);
+  if (weights_n)
+    n = weights_n;
+
+  std::vector<double> scaled =
+    normalizeWeights(REAL(weights), weights_n, n, normalize);
+  double const* weights_data = scaled.empty() ? NULL : &scaled[0];
 
   if (Rf_isMatrix(data))
     return roll_matrix_with(
-      f, NumericMatrix(data), n, scaled, by, fill, partial, align);
+      f, data, n, weights_data, weights_n, by, fill, partial, align);
 
   return roll_vector_with(
-    f, NumericVector(data), n, scaled, by, fill, partial, align);
+    f, data, n, weights_data, weights_n, by, fill, partial, align);
 
 }
 
 }  // end namespace RcppRoll
 
-// [[Rcpp::export]]
-NumericVector na_locf(NumericVector x)
+extern "C" SEXP na_locf(SEXP x)
 {
-  NumericVector output = Rcpp::clone(x);
+  SEXP output = PROTECT(
+    TYPEOF(x) == REALSXP ? Rf_duplicate(x) : Rf_coerceVector(x, REALSXP));
+
+  double* data = REAL(output);
+  R_xlen_t n = Rf_xlength(output);
 
   double lastNonNA = NA_REAL;
-  int n = x.size();
-
-  for (int i = 0; i < n; ++i)
+  for (R_xlen_t i = 0; i < n; ++i)
   {
-    double value = output[i];
+    double value = data[i];
     if (!ISNAN(value))
       lastNonNA = value;
     else
-      output[i] = lastNonNA;
+      data[i] = lastNonNA;
   }
+
+  UNPROTECT(1);
   return output;
 }
 
 // Begin auto-generated exports (internal/make-exports.R)
 
-// [[Rcpp::export]]
-SEXP roll_mean_impl(SEXP x,
-             int n,
-             NumericVector weights,
-             int by,
-             NumericVector fill_,
-             bool partial,
-             String align,
-             bool normalize,
-             bool na_rm)
+extern "C" SEXP roll_mean_impl(SEXP x,
+                             SEXP n,
+                             SEXP weights,
+                             SEXP by,
+                             SEXP fill,
+                             SEXP partial,
+                             SEXP align,
+                             SEXP normalize,
+                             SEXP na_rm)
 {
-  RcppRoll::Fill fill(fill_);
-  if (na_rm) {
+  RcppRoll::Fill fill_(fill);
+  if (Rf_asLogical(na_rm)) {
     return RcppRoll::roll_with(
-      RcppRoll::mean_f<true>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::mean_f<true>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   } else {
     return RcppRoll::roll_with(
-      RcppRoll::mean_f<false>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::mean_f<false>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   }
 }
-// [[Rcpp::export]]
-SEXP roll_median_impl(SEXP x,
-             int n,
-             NumericVector weights,
-             int by,
-             NumericVector fill_,
-             bool partial,
-             String align,
-             bool normalize,
-             bool na_rm)
+extern "C" SEXP roll_median_impl(SEXP x,
+                             SEXP n,
+                             SEXP weights,
+                             SEXP by,
+                             SEXP fill,
+                             SEXP partial,
+                             SEXP align,
+                             SEXP normalize,
+                             SEXP na_rm)
 {
-  RcppRoll::Fill fill(fill_);
-  if (na_rm) {
+  RcppRoll::Fill fill_(fill);
+  if (Rf_asLogical(na_rm)) {
     return RcppRoll::roll_with(
-      RcppRoll::median_f<true>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::median_f<true>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   } else {
     return RcppRoll::roll_with(
-      RcppRoll::median_f<false>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::median_f<false>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   }
 }
-// [[Rcpp::export]]
-SEXP roll_min_impl(SEXP x,
-             int n,
-             NumericVector weights,
-             int by,
-             NumericVector fill_,
-             bool partial,
-             String align,
-             bool normalize,
-             bool na_rm)
+extern "C" SEXP roll_min_impl(SEXP x,
+                             SEXP n,
+                             SEXP weights,
+                             SEXP by,
+                             SEXP fill,
+                             SEXP partial,
+                             SEXP align,
+                             SEXP normalize,
+                             SEXP na_rm)
 {
-  RcppRoll::Fill fill(fill_);
-  if (na_rm) {
+  RcppRoll::Fill fill_(fill);
+  if (Rf_asLogical(na_rm)) {
     return RcppRoll::roll_with(
-      RcppRoll::min_f<true>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::min_f<true>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   } else {
     return RcppRoll::roll_with(
-      RcppRoll::min_f<false>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::min_f<false>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   }
 }
-// [[Rcpp::export]]
-SEXP roll_max_impl(SEXP x,
-             int n,
-             NumericVector weights,
-             int by,
-             NumericVector fill_,
-             bool partial,
-             String align,
-             bool normalize,
-             bool na_rm)
+extern "C" SEXP roll_max_impl(SEXP x,
+                             SEXP n,
+                             SEXP weights,
+                             SEXP by,
+                             SEXP fill,
+                             SEXP partial,
+                             SEXP align,
+                             SEXP normalize,
+                             SEXP na_rm)
 {
-  RcppRoll::Fill fill(fill_);
-  if (na_rm) {
+  RcppRoll::Fill fill_(fill);
+  if (Rf_asLogical(na_rm)) {
     return RcppRoll::roll_with(
-      RcppRoll::max_f<true>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::max_f<true>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   } else {
     return RcppRoll::roll_with(
-      RcppRoll::max_f<false>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::max_f<false>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   }
 }
-// [[Rcpp::export]]
-SEXP roll_prod_impl(SEXP x,
-             int n,
-             NumericVector weights,
-             int by,
-             NumericVector fill_,
-             bool partial,
-             String align,
-             bool normalize,
-             bool na_rm)
+extern "C" SEXP roll_prod_impl(SEXP x,
+                             SEXP n,
+                             SEXP weights,
+                             SEXP by,
+                             SEXP fill,
+                             SEXP partial,
+                             SEXP align,
+                             SEXP normalize,
+                             SEXP na_rm)
 {
-  RcppRoll::Fill fill(fill_);
-  if (na_rm) {
+  RcppRoll::Fill fill_(fill);
+  if (Rf_asLogical(na_rm)) {
     return RcppRoll::roll_with(
-      RcppRoll::prod_f<true>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::prod_f<true>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   } else {
     return RcppRoll::roll_with(
-      RcppRoll::prod_f<false>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::prod_f<false>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   }
 }
-// [[Rcpp::export]]
-SEXP roll_sum_impl(SEXP x,
-             int n,
-             NumericVector weights,
-             int by,
-             NumericVector fill_,
-             bool partial,
-             String align,
-             bool normalize,
-             bool na_rm)
+extern "C" SEXP roll_sum_impl(SEXP x,
+                             SEXP n,
+                             SEXP weights,
+                             SEXP by,
+                             SEXP fill,
+                             SEXP partial,
+                             SEXP align,
+                             SEXP normalize,
+                             SEXP na_rm)
 {
-  RcppRoll::Fill fill(fill_);
-  if (na_rm) {
+  RcppRoll::Fill fill_(fill);
+  if (Rf_asLogical(na_rm)) {
     return RcppRoll::roll_with(
-      RcppRoll::sum_f<true>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::sum_f<true>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   } else {
     return RcppRoll::roll_with(
-      RcppRoll::sum_f<false>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::sum_f<false>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   }
 }
-// [[Rcpp::export]]
-SEXP roll_sd_impl(SEXP x,
-             int n,
-             NumericVector weights,
-             int by,
-             NumericVector fill_,
-             bool partial,
-             String align,
-             bool normalize,
-             bool na_rm)
+extern "C" SEXP roll_sd_impl(SEXP x,
+                             SEXP n,
+                             SEXP weights,
+                             SEXP by,
+                             SEXP fill,
+                             SEXP partial,
+                             SEXP align,
+                             SEXP normalize,
+                             SEXP na_rm)
 {
-  RcppRoll::Fill fill(fill_);
-  if (na_rm) {
+  RcppRoll::Fill fill_(fill);
+  if (Rf_asLogical(na_rm)) {
     return RcppRoll::roll_with(
-      RcppRoll::sd_f<true>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::sd_f<true>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   } else {
     return RcppRoll::roll_with(
-      RcppRoll::sd_f<false>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::sd_f<false>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   }
 }
-// [[Rcpp::export]]
-SEXP roll_var_impl(SEXP x,
-             int n,
-             NumericVector weights,
-             int by,
-             NumericVector fill_,
-             bool partial,
-             String align,
-             bool normalize,
-             bool na_rm)
+extern "C" SEXP roll_var_impl(SEXP x,
+                             SEXP n,
+                             SEXP weights,
+                             SEXP by,
+                             SEXP fill,
+                             SEXP partial,
+                             SEXP align,
+                             SEXP normalize,
+                             SEXP na_rm)
 {
-  RcppRoll::Fill fill(fill_);
-  if (na_rm) {
+  RcppRoll::Fill fill_(fill);
+  if (Rf_asLogical(na_rm)) {
     return RcppRoll::roll_with(
-      RcppRoll::var_f<true>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::var_f<true>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   } else {
     return RcppRoll::roll_with(
-      RcppRoll::var_f<false>(), x, n, weights, by, fill, partial, align, normalize);
+      RcppRoll::var_f<false>(), x, Rf_asInteger(n), weights, Rf_asInteger(by),
+      fill_, Rf_asLogical(partial), CHAR(STRING_ELT(align, 0)),
+      Rf_asLogical(normalize));
   }
 }
 // End auto-generated exports (internal/make-exports.R)
