@@ -8,8 +8,8 @@ roll_threads()
 }
 \value{
 An integer scalar: the maximum number of threads used, or
-\code{NA} if the package was compiled without \code{OpenMP} support --
-useful for checking what an installation from sources ended up with.
+  \code{NA} if the package was compiled without \code{OpenMP} support --
+  useful for checking what an installation from sources ended up with.
 }
 \description{
 Reports how many threads the rolling computations would put to work on a

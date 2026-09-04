@@ -1,4 +1,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
-internal/
+^internal$
 ^\.github$
+^\.worktrees$
+^revdep$
+^cran-comments\.md$
