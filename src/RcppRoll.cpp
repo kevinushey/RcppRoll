@@ -9,6 +9,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef _OPENMP
+# include <omp.h>
+#endif
+
 // Errors longjmp past any C++ frames on the stack, so every Rf_error() here
 // fires while validating arguments, before any object owning memory is live.
 
@@ -340,6 +344,31 @@ private:
 
   Callable f_;
   double const* x_;
+
+};
+
+// Adapts the weighted form of a windowing function to the same
+// compute(start, end) protocol, so the chunked drivers below serve the
+// weighted path too. Weighted windows are never clipped -- 'weights' is
+// rejected together with 'partial' -- so the width recovered here is always
+// the weights' own length.
+template <typename Callable>
+class WeightedAccumulator {
+
+public:
+
+  WeightedAccumulator(Callable f, double const* x, double const* weights)
+    : f_(f), x_(x), weights_(weights) {}
+
+  double compute(int start, int end) {
+    return f_(x_, start, weights_, end - start + 1);
+  }
+
+private:
+
+  Callable f_;
+  double const* x_;
+  double const* weights_;
 
 };
 
@@ -1527,6 +1556,61 @@ struct accumulator_for< median_f<NA_RM, LOWER> > {
 };
 
 // ---------------------------------------------------------------------------
+// Chunking and threads
+//
+// The drivers below walk their windows a chunk at a time, each chunk starting
+// from a fresh copy of a prototype accumulator. Chunks share nothing, and the
+// window loops touch no R API, so where OpenMP support was compiled in the
+// chunks run across threads. A serial build walks the very same chunks in
+// order, so results never depend on the thread count -- nor on whether there
+// are threads at all.
+// ---------------------------------------------------------------------------
+
+// Chunk size, in windows. Restarting an accumulator costs one window's worth
+// of adds, so chunks scale with the window to keep that amortized away, with
+// a floor so that a chunk is never trivial. Deliberately a function of the
+// window alone: thread counts must not move chunk boundaries, or results
+// would depend on them.
+inline int chunkSize(int width) {
+  long long chunk = 8192;
+  if (8LL * width > chunk)
+    chunk = 8LL * width;
+  if (chunk > (1 << 30))
+    chunk = (1 << 30);
+  return (int) chunk;
+}
+
+#ifdef _OPENMP
+
+// set in init.c when this process is a forked child; see the note there
+extern "C" {
+extern int rcpproll_forked;
+}
+
+// The thread count requested through options(RcppRoll.threads = <n>). Values
+// below 1, and a missing option, defer to the OpenMP runtime default, which
+// itself respects e.g. OMP_NUM_THREADS. Reads an R option, so this must stay
+// on the main thread, outside any parallel region.
+inline int requestedThreads() {
+  SEXP option = Rf_GetOption1(Rf_install("RcppRoll.threads"));
+  if (option != R_NilValue) {
+    int threads = Rf_asInteger(option);
+    if (threads != NA_INTEGER && threads >= 1)
+      return threads;
+  }
+  return omp_get_max_threads();
+}
+
+inline int threadCount(int chunks) {
+  if (chunks < 2 || rcpproll_forked)
+    return 1;
+  int threads = requestedThreads();
+  return threads < chunks ? threads : chunks;
+}
+
+#endif
+
+// ---------------------------------------------------------------------------
 // Drivers
 //
 // Each writes 'rollOutputSize()' values into a buffer the caller owns, so that
@@ -1534,24 +1618,35 @@ struct accumulator_for< median_f<NA_RM, LOWER> > {
 // ---------------------------------------------------------------------------
 
 // Walk the clipped windows, writing one value per point.
-template <typename Accumulator, typename Callable>
-void roll_partial_windows(Callable f,
-                          double const* x,
+template <typename Accumulator>
+void roll_partial_windows(Accumulator const& prototype,
                           int x_n,
                           double* output,
-                          int n,
+                          int width,
                           int by,
                           int leftOffset,
                           int rightOffset) {
 
-  Accumulator accumulator(f, x, n < x_n ? n : x_n);
+  int ops = x_n ? (x_n - 1) / by + 1 : 0;
+  int chunk = chunkSize(width);
+  int chunks = ops ? (ops - 1) / chunk + 1 : 0;
 
-  for (int i = 0; i < x_n; i += by) {
-    int start = i - leftOffset;
-    int end   = i + rightOffset;
-    if (start < 0) start = 0;
-    if (end > x_n - 1) end = x_n - 1;
-    output[i] = accumulator.compute(start, end);
+#ifdef _OPENMP
+  int threads = threadCount(chunks);
+# pragma omp parallel for num_threads(threads) if (threads > 1)
+#endif
+  for (int c = 0; c < chunks; ++c) {
+    Accumulator accumulator(prototype);
+    int begin = c * chunk;
+    int end = ops - begin > chunk ? begin + chunk : ops;
+    for (int j = begin; j < end; ++j) {
+      int i = j * by;
+      int start = i - leftOffset;
+      int stop  = i + rightOffset;
+      if (start < 0) start = 0;
+      if (stop > x_n - 1) stop = x_n - 1;
+      output[i] = accumulator.compute(start, stop);
+    }
   }
 
 }
@@ -1581,22 +1676,26 @@ void roll_vector_partial_into(Callable f,
   if (by != 1)
     std::fill(output, output + x_n, NA_REAL);
 
+  // the cap applies to what an accumulator reserves for a window, too
+  int width = n < x_n ? n : x_n;
+
   typedef typename accumulator_for<Callable>::type Incremental;
   if (Incremental::worthwhile(n, by))
-    roll_partial_windows<Incremental>(
-      f, x, x_n, output, n, by, leftOffset, rightOffset);
+    roll_partial_windows(
+      Incremental(f, x, width), x_n, output, width, by,
+      leftOffset, rightOffset);
   else
-    roll_partial_windows< DirectAccumulator<Callable> >(
-      f, x, x_n, output, n, by, leftOffset, rightOffset);
+    roll_partial_windows(
+      DirectAccumulator<Callable>(f, x, width), x_n, output, width, by,
+      leftOffset, rightOffset);
 
 }
 
 // Walk the whole windows, writing 'output' from 'from' up to 'to'. Returns one
 // step past the last window computed, which is where the right-hand fill picks
 // up.
-template <typename Accumulator, typename Callable>
-int roll_fill_windows(Callable f,
-                      double const* x,
+template <typename Accumulator>
+int roll_fill_windows(Accumulator const& prototype,
                       double* output,
                       int n,
                       int by,
@@ -1604,15 +1703,26 @@ int roll_fill_windows(Callable f,
                       int to,
                       int padLeftTimes) {
 
-  Accumulator accumulator(f, x, n);
+  int ops = to > from ? (to - from - 1) / by + 1 : 0;
+  int chunk = chunkSize(n);
+  int chunks = ops ? (ops - 1) / chunk + 1 : 0;
 
-  int i = from;
-  for (; i < to; i += by) {
-    int start = i - padLeftTimes;
-    output[i] = accumulator.compute(start, start + n - 1);
+#ifdef _OPENMP
+  int threads = threadCount(chunks);
+# pragma omp parallel for num_threads(threads) if (threads > 1)
+#endif
+  for (int c = 0; c < chunks; ++c) {
+    Accumulator accumulator(prototype);
+    int begin = c * chunk;
+    int end = ops - begin > chunk ? begin + chunk : ops;
+    for (int j = begin; j < end; ++j) {
+      int i = from + j * by;
+      int start = i - padLeftTimes;
+      output[i] = accumulator.compute(start, start + n - 1);
+    }
   }
 
-  return i;
+  return from + ops * by;
 }
 
 template <typename Callable>
@@ -1649,20 +1759,21 @@ void roll_vector_fill_into(Callable f,
   for (; i < padLeftTimes; ++i)
     output[i] = fill.left();
 
-  // Fill result -- we hoist the indexing variable outside of the loop
-  // so we can re-use it to easily figure out where our 'fill-right'
-  // pass-through should start
+  // Fill result -- the driver reports one step past the last window it
+  // computed, which is where the 'fill-right' pass-through should start
+  int to = padLeftTimes + ops_n;
   if (weights_n) {
-    for (; i < padLeftTimes + ops_n; i += by) {
-      output[i] = f(x, i - padLeftTimes, weights, n);
-    }
+    i = roll_fill_windows(
+      WeightedAccumulator<Callable>(f, x, weights),
+      output, n, by, i, to, padLeftTimes);
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
     i = Incremental::worthwhile(n, by) ?
-      roll_fill_windows<Incremental>(
-        f, x, output, n, by, i, padLeftTimes + ops_n, padLeftTimes) :
-      roll_fill_windows< DirectAccumulator<Callable> >(
-        f, x, output, n, by, i, padLeftTimes + ops_n, padLeftTimes);
+      roll_fill_windows(
+        Incremental(f, x, n), output, n, by, i, to, padLeftTimes) :
+      roll_fill_windows(
+        DirectAccumulator<Callable>(f, x, n), output, n, by, i, to,
+        padLeftTimes);
   }
 
   // Fill-right on the remainders. We move the index
@@ -1674,20 +1785,28 @@ void roll_vector_fill_into(Callable f,
 
 }
 
-template <typename Accumulator, typename Callable>
-void roll_nofill_windows(Callable f,
-                         double const* x,
+template <typename Accumulator>
+void roll_nofill_windows(Accumulator const& prototype,
                          double* output,
                          int n,
                          int by,
                          int output_n) {
 
-  Accumulator accumulator(f, x, n);
+  int chunk = chunkSize(n);
+  int chunks = output_n ? (output_n - 1) / chunk + 1 : 0;
 
-  int index = 0;
-  for (int i = 0; i < output_n; ++i) {
-    output[i] = accumulator.compute(index, index + n - 1);
-    index += by;
+#ifdef _OPENMP
+  int threads = threadCount(chunks);
+# pragma omp parallel for num_threads(threads) if (threads > 1)
+#endif
+  for (int c = 0; c < chunks; ++c) {
+    Accumulator accumulator(prototype);
+    int begin = c * chunk;
+    int end = output_n - begin > chunk ? begin + chunk : output_n;
+    for (int i = begin; i < end; ++i) {
+      int index = i * by;
+      output[i] = accumulator.compute(index, index + n - 1);
+    }
   }
 }
 
@@ -1707,19 +1826,16 @@ void roll_vector_nofill_into(Callable f,
 
   int output_n = (x_n - n) / by + 1;
 
-  int index = 0;
   if (weights_n) {
-    for (int i = 0; i < output_n; ++i) {
-      output[i] = f(x, index, weights, n);
-      index += by;
-    }
+    roll_nofill_windows(
+      WeightedAccumulator<Callable>(f, x, weights), output, n, by, output_n);
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
     if (Incremental::worthwhile(n, by))
-      roll_nofill_windows<Incremental>(f, x, output, n, by, output_n);
+      roll_nofill_windows(Incremental(f, x, n), output, n, by, output_n);
     else
-      roll_nofill_windows< DirectAccumulator<Callable> >(
-        f, x, output, n, by, output_n);
+      roll_nofill_windows(
+        DirectAccumulator<Callable>(f, x, n), output, n, by, output_n);
   }
 
 }
@@ -1911,6 +2027,20 @@ extern "C" SEXP na_locf(SEXP x)
 
   UNPROTECT(1);
   return output;
+}
+
+// The number of threads the window drivers would put to work on a large
+// enough input, or NA when the package was compiled without OpenMP support.
+// Exposed as roll_threads(), so users can check what a source build ended
+// up with.
+extern "C" SEXP roll_threads_impl(void)
+{
+#ifdef _OPENMP
+  int threads = RcppRoll::rcpproll_forked ? 1 : RcppRoll::requestedThreads();
+  return Rf_ScalarInteger(threads);
+#else
+  return Rf_ScalarInteger(NA_INTEGER);
+#endif
 }
 
 // Begin auto-generated exports (internal/make-exports.R)

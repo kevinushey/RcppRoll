@@ -1,6 +1,21 @@
 
 # RcppRoll 0.3.1  (UNRELEASED)
 
+- The rolling window computations are now parallelized with OpenMP, where
+  support for it is available. By default, the number of threads is chosen
+  by the OpenMP runtime (e.g. via `OMP_NUM_THREADS`); it can be set
+  explicitly with `options(RcppRoll.threads = <n>)`, and
+  `options(RcppRoll.threads = 1)` disables parallelization. Work is split
+  into chunks whose boundaries do not depend on the thread count, so
+  results are identical whatever the number of threads -- including on
+  builds without OpenMP support at all.
+
+- The new `roll_threads()` function reports the number of threads in use,
+  or NA when the package was compiled without OpenMP support. The package
+  reports this on attach as well; suppress the startup message with
+  `options(RcppRoll.quiet = TRUE)`. Instructions for enabling OpenMP when
+  installing from sources on macOS are in the README.
+
 - The `partial` argument is now implemented. With `partial = TRUE`, windows at
   the edges of `x` are computed over however many elements are in range rather
   than filled, so the result has one element per element of `x`. This matches
