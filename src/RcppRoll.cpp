@@ -253,15 +253,17 @@ struct mean_f<true> {
                            int offset,
                            NumericVector& weights,
                            int n) {
+    // NOTE: the weights need to be re-normalized after dropping NAs, so we
+    // divide by the sum of the weights actually used rather than by a count
     double result = 0.0;
-    int num = 0;
+    double weights_sum = 0.0;
     for (int i = 0; i < n; ++i) {
       if (!ISNAN(x[offset + i])) {
         result += x[offset + i] * weights[i];
-        ++num;
+        weights_sum += weights[i];
       }
     }
-    return result / num;
+    return result / weights_sum;
   }
 };
 
@@ -524,6 +526,48 @@ struct prod_f<false> {
   }
 };
 
+// Compute a weighted median, ignoring any NAs in the window. The weights are
+// tied to their associated values before sorting, since a weight applies to the
+// value at its own position rather than to the value that ends up sorted there.
+inline double weighted_median(NumericVector const& x,
+                              int offset,
+                              NumericVector const& weights,
+                              int n) {
+
+  std::vector< std::pair<double, double> > pairs;
+  pairs.reserve(n);
+  for (int i = 0; i < n; ++i) {
+    double value = x[offset + i];
+    if (!ISNAN(value))
+      pairs.push_back(std::make_pair(value, weights[i]));
+  }
+
+  if (pairs.empty())
+    return NA_REAL;
+
+  std::sort(pairs.begin(), pairs.end());
+
+  double weights_sum = 0.0;
+  for (size_t i = 0; i < pairs.size(); ++i)
+    weights_sum += pairs[i].second;
+
+  // guard against zero, negative, or non-finite weight sums, which would
+  // otherwise let the search below run past the end of the window
+  if (!(weights_sum > 0))
+    return NA_REAL;
+
+  size_t k = 0;
+  double remaining = weights_sum;
+  for (; k + 1 < pairs.size(); ++k) {
+    remaining -= pairs[k].second;
+    if (!(remaining > weights_sum / 2))
+      break;
+  }
+
+  return pairs[k].first;
+
+}
+
 template <bool NA_RM>
 struct median_f;
 
@@ -562,20 +606,7 @@ struct median_f<false> {
       if (ISNAN(x[i]))
         return NA_REAL;
 
-    NumericVector copy(x.begin() + offset, x.begin() + offset + n);
-    std::sort(copy.begin(), copy.end());
-
-    double weights_sum = sum(weights);
-
-    int k = 0;
-    double sum = weights_sum - weights[0];
-
-    while (sum > weights_sum / 2) {
-      ++k;
-      sum -= weights[k];
-    }
-
-    return copy[k];
+    return weighted_median(x, offset, weights, n);
   }
 
 };
@@ -614,20 +645,7 @@ struct median_f<true> {
                            NumericVector& weights,
                            int n) {
 
-    NumericVector copy(x.begin() + offset, x.begin() + offset + n);
-    std::sort(copy.begin(), copy.end());
-
-    double weights_sum = sum(weights);
-
-    int k = 0;
-    double sum = weights_sum - weights[0];
-
-    while (sum > weights_sum / 2) {
-      ++k;
-      sum -= weights[k];
-    }
-
-    return copy[k];
+    return weighted_median(x, offset, weights, n);
   }
 
 };
