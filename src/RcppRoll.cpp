@@ -201,7 +201,7 @@ class WindowAccumulator {
 
 public:
 
-  WindowAccumulator(NumericVector const& x)
+  WindowAccumulator(double const* x)
     : x_(x), start_(0), end_(-1) {}
 
   double compute(int start, int end) {
@@ -240,7 +240,7 @@ public:
 
 protected:
 
-  NumericVector const& x_;
+  double const* x_;
   int start_;
   int end_;
 
@@ -252,7 +252,7 @@ class DirectAccumulator {
 
 public:
 
-  DirectAccumulator(Callable f, NumericVector const& x, int /* n */)
+  DirectAccumulator(Callable f, double const* x, int /* n */)
     : f_(f), x_(x) {}
 
   // an operation with no incremental form always reads the window afresh
@@ -265,7 +265,7 @@ public:
 private:
 
   Callable f_;
-  NumericVector const& x_;
+  double const* x_;
 
 };
 
@@ -281,7 +281,7 @@ class SumAccumulator :
 public:
 
   template <typename Callable>
-  SumAccumulator(Callable, NumericVector const& x, int) : Base(x) {
+  SumAccumulator(Callable, double const* x, int) : Base(x) {
     clear();
   }
 
@@ -364,7 +364,7 @@ class VarAccumulator :
 public:
 
   template <typename Callable>
-  VarAccumulator(Callable, NumericVector const& x, int) : Base(x) {
+  VarAccumulator(Callable, double const* x, int) : Base(x) {
     clear();
   }
 
@@ -493,7 +493,7 @@ class ExtremumAccumulator :
 public:
 
   template <typename Callable>
-  ExtremumAccumulator(Callable, NumericVector const& x, int) : Base(x) {
+  ExtremumAccumulator(Callable, double const* x, int) : Base(x) {
     clear();
   }
 
@@ -563,7 +563,7 @@ class MedianAccumulator :
 public:
 
   template <typename Callable>
-  MedianAccumulator(Callable, NumericVector const& x, int n) : Base(x) {
+  MedianAccumulator(Callable, double const* x, int n) : Base(x) {
     if (n > 0) sorted_.reserve(n);
     clear();
   }
@@ -634,7 +634,7 @@ struct mean_f;
 
 template <>
 struct mean_f<true> {
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     double result = 0.0;
     int num = 0;
     for (int i = 0; i < n; ++i) {
@@ -646,9 +646,9 @@ struct mean_f<true> {
     return result / num;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     // NOTE: the weights need to be re-normalized after dropping NAs, so we
     // divide by the sum of the weights actually used rather than by a count
@@ -666,7 +666,7 @@ struct mean_f<true> {
 
 template <>
 struct mean_f<false> {
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
       result += x[offset + i];
@@ -674,9 +674,9 @@ struct mean_f<false> {
     return result / n;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
@@ -692,7 +692,7 @@ struct sum_f;
 template <>
 struct sum_f<false> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
       result += x[offset + i];
@@ -700,9 +700,9 @@ struct sum_f<false> {
     return result;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
@@ -716,7 +716,7 @@ struct sum_f<false> {
 template <>
 struct sum_f<true> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
       if (!ISNAN(x[offset + i])) {
@@ -726,9 +726,9 @@ struct sum_f<true> {
     return result;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     double result = 0.0;
     for (int i = 0; i < n; ++i) {
@@ -747,7 +747,7 @@ struct min_f;
 template <>
 struct min_f<false> {
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
                            int n) {
     double result = R_PosInf;
@@ -760,9 +760,9 @@ struct min_f<false> {
     return result;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     double result = R_PosInf;
     for (int i = 0; i < n; ++i) {
@@ -781,9 +781,9 @@ struct min_f<false> {
 template <>
 struct min_f<true> {
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     double result = R_PosInf;
     for (int i = 0; i < n; ++i) {
@@ -794,7 +794,7 @@ struct min_f<true> {
     return result;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
                            int n) {
     double result = R_PosInf;
@@ -811,9 +811,9 @@ struct max_f;
 template <>
 struct max_f<false> {
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
@@ -827,7 +827,7 @@ struct max_f<false> {
     return result;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
                            int n) {
     double result = R_NegInf;
@@ -844,9 +844,9 @@ struct max_f<false> {
 template <>
 struct max_f<true> {
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     double result = R_NegInf;
     for (int i = 0; i < n; ++i) {
@@ -858,7 +858,7 @@ struct max_f<true> {
     return result;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
                            int n) {
     double result = R_NegInf;
@@ -876,7 +876,7 @@ struct prod_f;
 template <>
 struct prod_f<true> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     double result = 1.0;
     for (int i = 0; i < n; ++i) {
       if (!ISNAN(x[offset + i])) {
@@ -886,9 +886,9 @@ struct prod_f<true> {
     return result;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     double result = 1.0;
     for (int i = 0; i < n; ++i) {
@@ -903,7 +903,7 @@ struct prod_f<true> {
 template <>
 struct prod_f<false> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     double result = 1.0;
     for (int i = 0; i < n; ++i) {
       result *= x[offset + i];
@@ -911,9 +911,9 @@ struct prod_f<false> {
     return result;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     double result = 1.0;
     for (int i = 0; i < n; ++i) {
@@ -928,9 +928,9 @@ struct prod_f<false> {
 // value at its own position rather than to the value that ends up sorted there.
 // 'scratch' belongs to the caller, so that a pass over many windows reuses one
 // buffer rather than allocating for each of them.
-inline double weighted_median(NumericVector const& x,
+inline double weighted_median(double const* x,
                               int offset,
-                              NumericVector const& weights,
+                              double const* weights,
                               int n,
                               std::vector< std::pair<double, double> >& scratch) {
 
@@ -997,20 +997,20 @@ struct median_f;
 template <>
 struct median_f<false> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
 
     for (int i = offset; i < offset + n; i++)
       if (ISNAN(x[i]))
         return NA_REAL;
 
-    scratch_.assign(x.begin() + offset, x.begin() + offset + n);
+    scratch_.assign(x + offset, x + offset + n);
     return select_median(scratch_);
 
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
 
     for (int i = offset; i < offset + n; i++)
@@ -1030,7 +1030,7 @@ private:
 template <>
 struct median_f<true> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
 
     scratch_.clear();
     scratch_.reserve(n);
@@ -1042,9 +1042,9 @@ struct median_f<true> {
 
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
 
     return weighted_median(x, offset, weights, n, weighted_scratch_);
@@ -1061,7 +1061,7 @@ private:
 // remain, matching var()'s behaviour for a vector of length 0 or 1. The first
 // pass also reports whether it saw an NA at all, so that the NA-intolerant
 // form below does not need a scan of its own.
-inline double window_var(NumericVector const& x,
+inline double window_var(double const* x,
                          int offset,
                          int n,
                          bool& has_na) {
@@ -1121,9 +1121,9 @@ inline double window_var(NumericVector const& x,
 // Since 'normalize' scales the weights to sum to n, equal weights reduce this
 // to window_var() above, so a uniform weight vector agrees with the unweighted
 // routines. NAs are dropped from the values and their own weights together.
-inline double weighted_var(NumericVector const& x,
+inline double weighted_var(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n,
                            bool& has_na) {
 
@@ -1181,15 +1181,15 @@ struct var_f;
 template <>
 struct var_f<false> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     bool has_na;
     double result = window_var(x, offset, n, has_na);
     return has_na ? NA_REAL : result;
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     bool has_na;
     double result = weighted_var(x, offset, weights, n, has_na);
@@ -1201,14 +1201,14 @@ struct var_f<false> {
 template <>
 struct var_f<true> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     bool has_na;
     return window_var(x, offset, n, has_na);
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     bool has_na;
     return weighted_var(x, offset, weights, n, has_na);
@@ -1222,13 +1222,13 @@ struct sd_f;
 template <>
 struct sd_f<false> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     return window_sqrt(var_f<false>()(x, offset, n));
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     return window_sqrt(var_f<false>()(x, offset, weights, n));
   }
@@ -1238,13 +1238,13 @@ struct sd_f<false> {
 template <>
 struct sd_f<true> {
 
-  inline double operator()(NumericVector const& x, int offset, int n) {
+  inline double operator()(double const* x, int offset, int n) {
     return window_sqrt(var_f<true>()(x, offset, n));
   }
 
-  inline double operator()(NumericVector const& x,
+  inline double operator()(double const* x,
                            int offset,
-                           NumericVector const& weights,
+                           double const* weights,
                            int n) {
     return window_sqrt(var_f<true>()(x, offset, weights, n));
   }
@@ -1303,14 +1303,14 @@ struct accumulator_for< median_f<NA_RM> > {
 // Walk the clipped windows, writing one value per point.
 template <typename Accumulator, typename Callable>
 void roll_partial_windows(Callable f,
-                          NumericVector const& x,
+                          double const* x,
+                          int x_n,
                           double* output,
                           int n,
                           int by,
                           int leftOffset,
                           int rightOffset) {
 
-  int x_n = x.size();
   Accumulator accumulator(f, x, n);
 
   for (int i = 0; i < x_n; i += by) {
@@ -1325,14 +1325,13 @@ void roll_partial_windows(Callable f,
 
 template <typename Callable>
 void roll_partial_direct(Callable f,
-                         NumericVector const& x,
+                         double const* x,
+                         int x_n,
                          double* output,
                          int n,
                          int by,
                          int leftOffset,
                          int rightOffset) {
-
-  int x_n = x.size();
 
   for (int i = 0; i < x_n; i += by) {
     int start = i - leftOffset;
@@ -1349,7 +1348,8 @@ void roll_partial_direct(Callable f,
 // at is always in range itself, so a window is never empty.
 template <typename Callable>
 void roll_vector_partial_into(Callable f,
-                              NumericVector const& x,
+                              double const* x,
+                              int x_n,
                               double* output,
                               int n,
                               int by,
@@ -1360,14 +1360,14 @@ void roll_vector_partial_into(Callable f,
 
   // points we skip over are not computed, and 'fill' does not apply here
   if (by != 1)
-    std::fill(output, output + x.size(), NA_REAL);
+    std::fill(output, output + x_n, NA_REAL);
 
   typedef typename accumulator_for<Callable>::type Incremental;
   if (Incremental::worthwhile(n, by))
     roll_partial_windows<Incremental>(
-      f, x, output, n, by, leftOffset, rightOffset);
+      f, x, x_n, output, n, by, leftOffset, rightOffset);
   else
-    roll_partial_direct(f, x, output, n, by, leftOffset, rightOffset);
+    roll_partial_direct(f, x, x_n, output, n, by, leftOffset, rightOffset);
 
 }
 
@@ -1376,7 +1376,7 @@ void roll_vector_partial_into(Callable f,
 // up.
 template <typename Accumulator, typename Callable>
 int roll_fill_windows(Callable f,
-                      NumericVector const& x,
+                      double const* x,
                       double* output,
                       int n,
                       int by,
@@ -1397,7 +1397,7 @@ int roll_fill_windows(Callable f,
 
 template <typename Callable>
 int roll_fill_direct(Callable f,
-                     NumericVector const& x,
+                     double const* x,
                      double* output,
                      int n,
                      int by,
@@ -1414,15 +1414,15 @@ int roll_fill_direct(Callable f,
 
 template <typename Callable>
 void roll_vector_fill_into(Callable f,
-                           NumericVector const& x,
+                           double const* x,
+                           int x_n,
                            double* output,
                            int n,
-                           NumericVector const& weights,
+                           double const* weights,
+                           int weights_n,
                            int by,
                            Fill const& fill,
                            String const& align) {
-
-  int x_n = x.size();
 
   if (x_n < n) {
     std::fill(output, output + x_n, NA_REAL);
@@ -1449,7 +1449,7 @@ void roll_vector_fill_into(Callable f,
   // Fill result -- we hoist the indexing variable outside of the loop
   // so we can re-use it to easily figure out where our 'fill-right'
   // pass-through should start
-  if (weights.size()) {
+  if (weights_n) {
     for (; i < padLeftTimes + ops_n; i += by) {
       output[i] = f(x, i - padLeftTimes, weights, n);
     }
@@ -1473,7 +1473,7 @@ void roll_vector_fill_into(Callable f,
 
 template <typename Accumulator, typename Callable>
 void roll_nofill_windows(Callable f,
-                         NumericVector const& x,
+                         double const* x,
                          double* output,
                          int n,
                          int by,
@@ -1490,7 +1490,7 @@ void roll_nofill_windows(Callable f,
 
 template <typename Callable>
 void roll_nofill_direct(Callable f,
-                        NumericVector const& x,
+                        double const* x,
                         double* output,
                         int n,
                         int by,
@@ -1505,16 +1505,18 @@ void roll_nofill_direct(Callable f,
 
 template <typename Callable>
 void roll_vector_nofill_into(Callable f,
-                             NumericVector const& x,
+                             double const* x,
+                             int x_n,
                              double* output,
                              int n,
-                             NumericVector const& weights,
+                             double const* weights,
+                             int weights_n,
                              int by) {
 
-  int output_n = (x.size() - n) / by + 1;
+  int output_n = (x_n - n) / by + 1;
 
   int index = 0;
-  if (weights.size()) {
+  if (weights_n) {
     for (int i = 0; i < output_n; ++i) {
       output[i] = f(x, index, weights, n);
       index += by;
@@ -1531,10 +1533,12 @@ void roll_vector_nofill_into(Callable f,
 
 template <typename Callable>
 void roll_vector_into(Callable f,
-                      NumericVector const& x,
+                      double const* x,
+                      int x_n,
                       double* output,
                       int n,
-                      NumericVector const& weights,
+                      double const* weights,
+                      int weights_n,
                       int by,
                       Fill const& fill,
                       bool partial,
@@ -1543,11 +1547,12 @@ void roll_vector_into(Callable f,
   // partial windows are computable at every point, so there is nothing to
   // shorten or to pad; 'weights' is rejected upstream in this case
   if (partial)
-    roll_vector_partial_into(f, x, output, n, by, align);
+    roll_vector_partial_into(f, x, x_n, output, n, by, align);
   else if (fill.filled())
-    roll_vector_fill_into(f, x, output, n, weights, by, fill, align);
+    roll_vector_fill_into(
+      f, x, x_n, output, n, weights, weights_n, by, fill, align);
   else
-    roll_vector_nofill_into(f, x, output, n, weights, by);
+    roll_vector_nofill_into(f, x, x_n, output, n, weights, weights_n, by);
 
 }
 
@@ -1565,14 +1570,15 @@ NumericVector roll_vector_with(Callable f,
     no_init(rollOutputSize(x.size(), n, by, fill, partial));
 
   roll_vector_into(
-    f, x, output.begin(), n, weights, by, fill, partial, align);
+    f, x.begin(), x.size(), output.begin(),
+    n, weights.begin(), weights.size(), by, fill, partial, align);
 
   return output;
 }
 
-// A NumericMatrix keeps its data column-major and contiguous, so a column can
-// be copied into one reused buffer and its results written straight into the
-// output -- rather than allocating a vector in and a vector out per column.
+// A NumericMatrix keeps its data column-major and contiguous, so each column
+// can be handed over as a pointer and its results written straight into the
+// output -- no per-column allocation, and no copying in or out.
 template <typename Callable>
 NumericMatrix roll_matrix_with(Callable f,
                                NumericMatrix x,
@@ -1588,17 +1594,15 @@ NumericMatrix roll_matrix_with(Callable f,
   int output_nrow = rollOutputSize(nrow, n, by, fill, partial);
 
   NumericMatrix output(output_nrow, ncol);
-  NumericVector column = no_init(nrow);
 
   double const* source = x.begin();
   double* target = output.begin();
 
   for (int j = 0; j < ncol; ++j) {
-    std::copy(source + (R_xlen_t) j * nrow,
-              source + (R_xlen_t) (j + 1) * nrow,
-              column.begin());
-    roll_vector_into(f, column, target + (R_xlen_t) j * output_nrow,
-                     n, weights, by, fill, partial, align);
+    roll_vector_into(f, source + (R_xlen_t) j * nrow, nrow,
+                     target + (R_xlen_t) j * output_nrow,
+                     n, weights.begin(), weights.size(), by,
+                     fill, partial, align);
   }
 
   return output;
