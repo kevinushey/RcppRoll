@@ -119,6 +119,71 @@ test_that("weighted roll_median pairs weights with their own values", {
 
 })
 
+test_that("uniform weights take the unweighted path exactly", {
+
+  # any uniform weight vector normalizes to exactly one in real arithmetic, so
+  # these agree bitwise with the unweighted call -- including window sizes
+  # whose rescaling rounds away from one in floating point (e.g. 1/49 * 49)
+  set.seed(321)
+  x <- rnorm(200)
+  x[c(5, 20, 21, 100)] <- NA
+
+  ops <- list(roll_sum, roll_mean, roll_min, roll_max, roll_prod, roll_var, roll_sd)
+  for (op in ops) {
+    for (n in c(3L, 6L, 49L, 64L)) {
+      for (na.rm in c(TRUE, FALSE)) {
+        expect_identical(op(x, n, weights = rep(1, n), na.rm = na.rm),
+                         op(x, n, na.rm = na.rm))
+        expect_identical(op(x, n, weights = rep(2.5, n), na.rm = na.rm),
+                         op(x, n, na.rm = na.rm))
+      }
+    }
+  }
+
+  # without 'normalize', only a vector of ones is the unweighted call
+  expect_identical(roll_sum(x, 8, weights = rep(1, 8), normalize = FALSE),
+                   roll_sum(x, 8))
+  expect_equal(roll_sum(x[101:108], 8, weights = rep(2, 8), normalize = FALSE),
+               2 * sum(x[101:108]))
+
+})
+
+test_that("uniform weights route the weighted median to its lower form", {
+
+  # a weighted median selects an observation: on an even window, the lower of
+  # the two middle values, where the unweighted median averages them
+  x <- c(1, 2, 3, 4, 5)
+  expect_equal(roll_median(x, 4, weights = rep(1, 4)), c(2, 3))
+  expect_equal(roll_median(x, 4), c(2.5, 3.5))
+
+  lower_median <- function(window) {
+    window <- window[!is.na(window)]
+    if (!length(window)) return(NA_real_)
+    sort(window)[(length(window) + 1) %/% 2]
+  }
+
+  # the routed path agrees with the reference on either side of the
+  # incremental crossover, NAs and even windows included
+  set.seed(987)
+  y <- rnorm(300)
+  y[sample(300, 30)] <- NA
+
+  for (n in c(4L, 64L)) {
+    windows <- seq_len(length(y) - n + 1L)
+    expect_equal(
+      roll_median(y, n, weights = rep(1, n), na.rm = TRUE),
+      vapply(windows, function(i) lower_median(y[i:(i + n - 1L)]), numeric(1)))
+  }
+
+  # a 'by' past the crossover takes the from-scratch path through the same form
+  n <- 8L
+  starts <- seq(1L, length(y) - n + 1L, by = 7L)
+  expect_equal(
+    roll_median(y, n, weights = rep(1, n), by = 7, na.rm = TRUE),
+    vapply(starts, function(i) lower_median(y[i:(i + n - 1L)]), numeric(1)))
+
+})
+
 test_that("the weighted median selection matches a sort-and-scan reference", {
 
   reference <- function(window, weights) {

@@ -152,6 +152,30 @@ inline double window_sqrt(double value) {
   return is_nan(value) ? value : sqrt(value);
 }
 
+// Whether every weight is the same, making the weighted call the unweighted
+// one: 'normalize' takes any uniform vector to exactly one in real arithmetic,
+// and without it only a vector of ones leaves the values untouched. Checked
+// against the raw weights, since rescaling them in floating point need not
+// land exactly on one. Zero and non-finite weights stay on the weighted path,
+// which knows their edge cases.
+inline bool weightsAreUniform(double const* weights,
+                              int weights_n,
+                              bool normalize) {
+
+  if (weights_n == 0)
+    return false;
+
+  double first = weights[0];
+  for (int i = 1; i < weights_n; ++i)
+    if (weights[i] != first)
+      return false;
+
+  if (!normalize)
+    return first == 1.0;
+
+  return is_finite(first) && first != 0.0;
+}
+
 // Neumaier compensated summation. Sliding a window means subtracting values
 // that were added earlier, and a plain running total cannot give back the low
 // bits of a small value that a much larger one absorbed in the meantime -- the
@@ -609,12 +633,14 @@ private:
 
 // The window is kept in sorted order, so the median is a lookup and each step
 // costs a binary search plus one memmove -- cheaper than selecting the middle
-// element out of the whole window every time.
-template <bool NA_RM>
+// element out of the whole window every time. The LOWER form reports the lower
+// of an even window's two middle values rather than their average, which is
+// the value a weighted median with uniform weights selects.
+template <bool NA_RM, bool LOWER>
 class MedianAccumulator :
-  public WindowAccumulator< MedianAccumulator<NA_RM> > {
+  public WindowAccumulator< MedianAccumulator<NA_RM, LOWER> > {
 
-  typedef WindowAccumulator< MedianAccumulator<NA_RM> > Base;
+  typedef WindowAccumulator< MedianAccumulator<NA_RM, LOWER> > Base;
 
 public:
 
@@ -680,6 +706,8 @@ public:
     size_t k = sorted_.size();
     if (k == 0)
       return NA_REAL;
+    if (LOWER)
+      return sorted_[(k - 1) / 2];
     if (k % 2 == 0)
       return (sorted_[k / 2 - 1] + sorted_[k / 2]) / 2;
     return sorted_[k / 2];
@@ -1144,12 +1172,20 @@ inline double weighted_median(double const* x,
 
 // Select the median out of 'scratch', which this reorders. std::nth_element
 // places the middle value in linear time, where a partial sort of the lower
-// half of the window would cost an extra log factor.
-inline double select_median(std::vector<double>& scratch) {
+// half of the window would cost an extra log factor. The lower form reports
+// the lower of an even window's two middle values rather than their average,
+// which is the value a weighted median with uniform weights selects.
+inline double select_median(std::vector<double>& scratch, bool lower) {
 
   size_t n = scratch.size();
   if (n == 0)
     return NA_REAL;
+
+  if (lower) {
+    std::nth_element(
+      scratch.begin(), scratch.begin() + (n - 1) / 2, scratch.end());
+    return scratch[(n - 1) / 2];
+  }
 
   std::nth_element(
     scratch.begin(), scratch.begin() + n / 2, scratch.end());
@@ -1158,19 +1194,22 @@ inline double select_median(std::vector<double>& scratch) {
   if (n % 2 == 0) {
     // everything below the midpoint is already partitioned below it, so the
     // other middle value is simply the largest of that part
-    double lower = *std::max_element(scratch.begin(), scratch.begin() + n / 2);
-    return (lower + upper) / 2;
+    double lower_middle =
+      *std::max_element(scratch.begin(), scratch.begin() + n / 2);
+    return (lower_middle + upper) / 2;
   }
 
   return upper;
 
 }
 
-template <bool NA_RM>
+// The weighted forms select an observation whatever LOWER says: a weighted
+// median never interpolates, so it is its own lower form.
+template <bool NA_RM, bool LOWER = false>
 struct median_f;
 
-template <>
-struct median_f<false> {
+template <bool LOWER>
+struct median_f<false, LOWER> {
 
   inline double operator()(double const* x, int offset, int n) {
 
@@ -1179,7 +1218,7 @@ struct median_f<false> {
         return NA_REAL;
 
     scratch_.assign(x + offset, x + offset + n);
-    return select_median(scratch_);
+    return select_median(scratch_, LOWER);
 
   }
 
@@ -1204,8 +1243,8 @@ private:
 
 };
 
-template <>
-struct median_f<true> {
+template <bool LOWER>
+struct median_f<true, LOWER> {
 
   inline double operator()(double const* x, int offset, int n) {
 
@@ -1215,7 +1254,7 @@ struct median_f<true> {
       if (!is_nan(x[i]))
         scratch_.push_back(x[i]);
 
-    return select_median(scratch_);
+    return select_median(scratch_, LOWER);
 
   }
 
@@ -1430,6 +1469,21 @@ struct sd_f<true> {
 
 };
 
+// The operation a run of uniform weights reduces to, once 'normalize' has
+// taken them to exactly one: usually the operation itself. The median is the
+// exception -- its weighted form selects the lower of an even window's two
+// middle values where the unweighted form averages them, so it reduces to its
+// lower form rather than to the plain median.
+template <typename Callable>
+inline Callable uniform_equivalent(Callable f) {
+  return f;
+}
+
+template <bool NA_RM>
+inline median_f<NA_RM, true> uniform_equivalent(median_f<NA_RM, false>) {
+  return median_f<NA_RM, true>();
+}
+
 // Which incremental accumulator stands in for a given windowing function.
 // Anything without one falls back to recomputing the window.
 template <typename Callable>
@@ -1467,9 +1521,9 @@ struct accumulator_for< sd_f<NA_RM> > {
   typedef VarAccumulator<NA_RM, true> type;
 };
 
-template <bool NA_RM>
-struct accumulator_for< median_f<NA_RM> > {
-  typedef MedianAccumulator<NA_RM> type;
+template <bool NA_RM, bool LOWER>
+struct accumulator_for< median_f<NA_RM, LOWER> > {
+  typedef MedianAccumulator<NA_RM, LOWER> type;
 };
 
 // ---------------------------------------------------------------------------
@@ -1766,6 +1820,26 @@ SEXP roll_matrix_with(Callable f,
   return output;
 }
 
+template <typename Callable>
+SEXP roll_dispatch(Callable f,
+                   SEXP data,
+                   int n,
+                   double const* weights,
+                   int weights_n,
+                   int by,
+                   Fill const& fill,
+                   bool partial,
+                   char const* align) {
+
+  if (Rf_isMatrix(data))
+    return roll_matrix_with(
+      f, data, n, weights, weights_n, by, fill, partial, align);
+
+  return roll_vector_with(
+    f, data, n, weights, weights_n, by, fill, partial, align);
+
+}
+
 // Shared entry point for the generated exports below: 'weights' settles the
 // window size, and is normalized once here rather than once per column.
 template <typename Callable>
@@ -1798,15 +1872,19 @@ SEXP roll_with(Callable f,
   if (n < 1)
     Rf_error("'n' should be a positive integer");
 
+  // uniform weights are an unweighted call in disguise, so route them to the
+  // unweighted loops, which carry their windows incrementally where the
+  // weighted forms recompute every window
+  if (weightsAreUniform(REAL(weights), weights_n, normalize))
+    return roll_dispatch(
+      uniform_equivalent(f), data, n,
+      (double const*) NULL, 0, by, fill, partial, align);
+
   std::vector<double> scaled =
     normalizeWeights(REAL(weights), weights_n, n, normalize);
   double const* weights_data = scaled.empty() ? NULL : &scaled[0];
 
-  if (Rf_isMatrix(data))
-    return roll_matrix_with(
-      f, data, n, weights_data, weights_n, by, fill, partial, align);
-
-  return roll_vector_with(
+  return roll_dispatch(
     f, data, n, weights_data, weights_n, by, fill, partial, align);
 
 }
