@@ -650,6 +650,98 @@ struct median_f<true> {
 
 };
 
+// Sample variance of a window, ignoring NAs. NA when fewer than two values
+// remain, matching var()'s behaviour for a vector of length 0 or 1.
+inline double window_var(NumericVector const& x, int offset, int n) {
+
+  double total = 0.0;
+  int count = 0;
+  for (int i = 0; i < n; ++i) {
+    double value = x[offset + i];
+    if (!ISNAN(value)) {
+      total += value;
+      ++count;
+    }
+  }
+
+  if (count < 2)
+    return NA_REAL;
+
+  double mean = total / count;
+
+  double result = 0.0;
+  for (int i = 0; i < n; ++i) {
+    double value = x[offset + i];
+    if (!ISNAN(value)) {
+      double difference = value - mean;
+      result += difference * difference;
+    }
+  }
+
+  return result / (count - 1);
+
+}
+
+// Weighted sample variance, treating a weight as a repeat count (frequency
+// weights):
+//
+//   m  = sum(w * x) / sum(w)
+//   s2 = sum(w * (x - m)^2) / (sum(w) - 1)
+//
+// Since 'normalize' scales the weights to sum to n, equal weights reduce this
+// to window_var() above, so a uniform weight vector agrees with the unweighted
+// routines. NAs are dropped from the values and their own weights together.
+inline double weighted_var(NumericVector const& x,
+                           int offset,
+                           NumericVector const& weights,
+                           int n) {
+
+  double weights_sum = 0.0;
+  double weighted_total = 0.0;
+  int count = 0;
+
+  for (int i = 0; i < n; ++i) {
+    double value = x[offset + i];
+    if (!ISNAN(value)) {
+      weights_sum += weights[i];
+      weighted_total += weights[i] * value;
+      ++count;
+    }
+  }
+
+  // as above for fewer than two values; a denominator that is zero or negative
+  // (possible with 'normalize = FALSE', or after dropping NAs) has no
+  // meaningful answer either
+  if (count < 2 || !(weights_sum > 1))
+    return NA_REAL;
+
+  double mean = weighted_total / weights_sum;
+
+  double result = 0.0;
+  for (int i = 0; i < n; ++i) {
+    double value = x[offset + i];
+    if (!ISNAN(value)) {
+      double difference = value - mean;
+      result += weights[i] * difference * difference;
+    }
+  }
+
+  return result / (weights_sum - 1);
+
+}
+
+inline bool window_has_na(NumericVector const& x, int offset, int n) {
+  for (int i = offset; i < offset + n; ++i)
+    if (ISNAN(x[i]))
+      return true;
+  return false;
+}
+
+// sqrt() would turn NA_REAL into a plain NaN, so pass non-values through
+inline double window_sqrt(double value) {
+  return ISNAN(value) ? value : sqrt(value);
+}
+
 template <bool NA_RM>
 struct var_f;
 
@@ -657,12 +749,15 @@ template <>
 struct var_f<false> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
-    return var(NumericVector(x.begin() + offset, x.begin() + offset + n));
+    if (window_has_na(x, offset, n))
+      return NA_REAL;
+    return window_var(x, offset, n);
   }
 
   inline double operator()(NumericVector const& x, int offset, NumericVector weights, int n) {
-    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
-    return var(sub * weights);
+    if (window_has_na(x, offset, n))
+      return NA_REAL;
+    return weighted_var(x, offset, weights, n);
   }
 
 };
@@ -671,15 +766,11 @@ template <>
 struct var_f<true> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
-    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
-    sub = na_omit(sub);
-    return var(sub);
+    return window_var(x, offset, n);
   }
 
   inline double operator()(NumericVector const& x, int offset, NumericVector weights, int n) {
-    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
-    sub = na_omit(sub);
-    return var(sub * weights);
+    return weighted_var(x, offset, weights, n);
   }
 
 };
@@ -691,12 +782,11 @@ template <>
 struct sd_f<false> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
-    return sqrt(var(NumericVector(x.begin() + offset, x.begin() + offset + n)));
+    return window_sqrt(var_f<false>()(x, offset, n));
   }
 
   inline double operator()(NumericVector const& x, int offset, NumericVector weights, int n) {
-    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
-    return sqrt(var(sub * weights));
+    return window_sqrt(var_f<false>()(x, offset, weights, n));
   }
 
 };
@@ -705,15 +795,11 @@ template <>
 struct sd_f<true> {
 
   inline double operator()(NumericVector const& x, int offset, int n) {
-    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
-    sub = na_omit(sub);
-    return sqrt(var(sub));
+    return window_sqrt(var_f<true>()(x, offset, n));
   }
 
   inline double operator()(NumericVector const& x, int offset, NumericVector weights, int n) {
-    NumericVector sub(x.begin() + offset, x.begin() + offset + n);
-    sub = na_omit(sub);
-    return sqrt(var(sub * weights));
+    return window_sqrt(var_f<true>()(x, offset, weights, n));
   }
 
 };
