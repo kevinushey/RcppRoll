@@ -1,5 +1,25 @@
 context("var and sd")
 
+test_that("direct variance preserves missing-value semantics at every position", {
+  for (missing in c(NA_real_, NaN)) {
+    for (position in seq_len(12L)) {
+      x <- as.numeric(seq_len(12L))
+      x[position] <- missing
+      for (roll in list(roll_var, roll_sd)) {
+        value <- roll(x, 12L)
+        expect_true(is.na(value) && !is.nan(value))
+        value <- roll(x, weights = seq_len(12L))
+        expect_true(is.na(value) && !is.nan(value))
+      }
+      expect_equal(roll_var(x, 12L, na.rm = TRUE), var(x, na.rm = TRUE))
+      expect_equal(roll_sd(x, 12L, na.rm = TRUE), sd(x, na.rm = TRUE))
+    }
+  }
+  # An infinity before the missing value must not turn the NA answer into NaN.
+  expect_identical(roll_var(c(Inf, NA_real_, 1), 3L), NA_real_)
+  expect_identical(roll_sd(c(Inf, NaN, 1), weights = c(1, 2, 3)), NA_real_)
+})
+
 # frequency weights: m = sum(w * x) / sum(w), s2 = sum(w * (x - m)^2) / (sum(w) - 1)
 reference_var <- function(window, weights) {
   keep <- !is.na(window)

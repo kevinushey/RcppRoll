@@ -1,6 +1,14 @@
 
 # RcppRoll 0.3.1  (UNRELEASED)
 
+- `roll_var()` and `roll_sd()` now stop direct window calculations at the
+  first missing value when `na.rm = FALSE`, avoiding the remaining mean and
+  variance passes. Calls with `na.rm = TRUE` keep their existing calculation.
+
+- `roll_median()` now selects directly when a call computes at most four
+  windows per column, avoiding the cost of building incremental median state
+  for too few outputs to benefit from it.
+
 - The window loops that dominate small-window calls have been rewritten
   branchlessly where measurement showed a win, with bit-identical results:
   `roll_sum()` and `roll_mean()` with `na.rm = TRUE` run 1.4-2.5x faster,
