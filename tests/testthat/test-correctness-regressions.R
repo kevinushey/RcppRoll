@@ -278,6 +278,62 @@ test_that("finite frequency weights do not overflow variance intermediates", {
 
 })
 
+test_that("small frequency weights retain representable variance contributions", {
+
+  # The weight ratio underflows (or is subnormal), but the weighted squared
+  # deviation divided by the total weight is still approximately one.
+  for (large in c(1e200, 2^600, 1e160, 2^520)) {
+    for (order in list(1:2, 2:1)) {
+      x <- c(0, large)[order]
+      weights <- c(large, 1 / large)[order]
+      for (roll in list(roll_var, roll_sd)) {
+        for (remove in c(FALSE, TRUE)) {
+          expect_equal(
+            roll(x, weights = weights, normalize = FALSE, na.rm = remove),
+            1
+          )
+        }
+        expect_equal(
+          roll(c(NA, x), weights = c(1, weights),
+               normalize = FALSE, na.rm = TRUE),
+          1
+        )
+      }
+    }
+  }
+
+})
+
+test_that("unnormalized means scale weighted products before summing", {
+
+  for (remove in c(FALSE, TRUE)) {
+    for (value in c(1, 1.5, 2, -1, -2)) {
+      expect_equal(
+        roll_mean(rep(value, 2), weights = rep(1e308, 2),
+                  normalize = FALSE, na.rm = remove),
+        value * 1e308
+      )
+    }
+    # Overflowing positive and negative products can cancel to a finite mean.
+    expect_equal(
+      roll_mean(c(2, 2, -2), weights = rep(1e308, 3),
+                normalize = FALSE, na.rm = remove),
+      (2 / 3) * 1e308
+    )
+    expect_equal(
+      roll_mean(rep(2, 3), weights = c(1e308, 1e308, -1e308),
+                normalize = FALSE, na.rm = remove),
+      (2 / 3) * 1e308
+    )
+  }
+  expect_equal(
+    roll_mean(c(NA, 1, 1), weights = rep(1e308, 3),
+              normalize = FALSE, na.rm = TRUE),
+    1e308
+  )
+
+})
+
 test_that("the OpenMP thread option is a positive integer scalar", {
 
   old <- options(RcppRoll.threads = NULL)

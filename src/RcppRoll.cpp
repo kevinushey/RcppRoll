@@ -3,6 +3,7 @@
 #include <Rinternals.h>
 
 #include <algorithm>
+#include <cfloat>
 #include <climits>
 #include <cmath>
 #include <cstring>
@@ -190,6 +191,46 @@ inline double midpoint(double lower, double upper) {
       std::signbit(lower) == std::signbit(upper))
     return lower + (upper - lower) / 2.0;
   return (lower + upper) / 2.0;
+}
+
+// Exceptional path for a mean of finite weighted products whose direct sum
+// overflowed. Keep the products' common power of two outside the sum: neither
+// forming a product nor restoring its scale may precede the final division.
+// Missing observations have already been validated and can only remain here
+// under na.rm.
+inline double scaled_weighted_mean(double const* x,
+                                   double const* weights,
+                                   int n,
+                                   double denominator) {
+  int scale = INT_MIN;
+  for (int i = 0; i < n; ++i) {
+    if (is_nan(x[i]) || x[i] == 0.0 || weights[i] == 0.0)
+      continue;
+    int value_exp, weight_exp;
+    std::frexp(x[i], &value_exp);
+    std::frexp(weights[i], &weight_exp);
+    scale = std::max(scale, value_exp + weight_exp);
+  }
+  if (scale == INT_MIN)
+    return 0.0 / denominator;
+
+  double total = 0.0;
+  double compensation = 0.0;
+  for (int i = 0; i < n; ++i) {
+    if (is_nan(x[i]) || x[i] == 0.0 || weights[i] == 0.0)
+      continue;
+    int value_exp, weight_exp;
+    double value = std::frexp(x[i], &value_exp);
+    double weight = std::frexp(weights[i], &weight_exp);
+    double term = std::ldexp(value * weight, value_exp + weight_exp - scale);
+    double updated = total + term;
+    if (fabs(total) >= fabs(term))
+      compensation += (total - updated) + term;
+    else
+      compensation += (term - updated) + total;
+    total = updated;
+  }
+  return std::ldexp((total + compensation) / denominator, scale);
 }
 
 // Whether every weight is the same, making the weighted call the unweighted
@@ -432,6 +473,9 @@ struct SumKernel : OnePass {
 
     if (scale == 0.0 || !is_finite(denominator))
       return result;
+
+    if (weights && !normalize)
+      return scaled_weighted_mean(window, weights, n, denominator);
 
     double scaled_total = 0.0;
     double compensation = 0.0;
@@ -711,8 +755,23 @@ struct VarKernel {
       bool ok = !is_nan(value);
       double w = ok ? weight / s.weight_scale[t] : 0.0;
       double difference = ok && weight != 0.0 ? value - s.mean[t] : 0.0;
-      s.squares[t] += w * difference * difference;
-      s.residual[t] += w * difference;
+      if (ok && weight > 0.0 && w < DBL_MIN && is_finite(difference)) {
+        // A tiny weight ratio can underflow even when multiplying it by a
+        // large deviation yields a substantial contribution. Combine the
+        // exponents before rounding either moment back to a double.
+        int weight_exp, scale_exp, difference_exp;
+        double weight_part = std::frexp(weight, &weight_exp);
+        double scale_part = std::frexp(s.weight_scale[t], &scale_exp);
+        double difference_part = std::frexp(difference, &difference_exp);
+        double moment = (weight_part / scale_part) * difference_part;
+        int exponent = weight_exp - scale_exp + difference_exp;
+        s.residual[t] += std::ldexp(moment, exponent);
+        s.squares[t] +=
+          std::ldexp(moment * difference_part, exponent + difference_exp);
+      } else {
+        s.squares[t] += w * difference * difference;
+        s.residual[t] += w * difference;
+      }
     }
   }
 
