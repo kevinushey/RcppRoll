@@ -1,9 +1,9 @@
 Package: RcppRoll
 Type: Package
-Title: Efficient Rolling  / Windowed Operations
-Version: 0.3.1.9000
-Author: Kevin Ushey
-Maintainer: Kevin Ushey <kevinushey@gmail.com>
+Title: Efficient Rolling / Windowed Operations
+Version: 0.4.0.9000
+Authors@R: person("Kevin", "Ushey", role = c("aut", "cre"),
+    email = "kevinushey@gmail.com")
 Description: Provides fast and efficient routines for
     common rolling / windowed operations. Routines for the
     efficient computation of windowed mean, median,
@@ -18,4 +18,5 @@ Depends:
 Suggests:
     zoo,
     testthat
-RoxygenNote: 6.0.1
+Encoding: UTF-8
+RoxygenNote: 7.3.3

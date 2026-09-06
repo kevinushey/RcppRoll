@@ -32,8 +32,6 @@
 #' package also reports this when attached; suppress that message with
 #' \code{options(RcppRoll.quiet = TRUE)}.
 #'
-#' @name RcppRoll
-#' @docType package
 #' @useDynLib RcppRoll, .registration = TRUE, .fixes = "C_"
-NULL
+"_PACKAGE"
 
