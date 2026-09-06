@@ -319,26 +319,34 @@ roll_varl(
 \arguments{
 \item{x}{A numeric vector or a numeric matrix.}
 
-\item{n}{The window size. Ignored when \code{weights} is non-\code{NULL}.}
+\item{n}{A positive integer scalar giving the window size. Ignored when
+\code{weights} is non-\code{NULL}.}
 
-\item{weights}{A vector of length \code{n}, giving the weights for each
-element within a window. If \code{NULL}, we take unit weights of width \code{n}.}
+\item{weights}{A non-empty vector of length \code{n}, giving the weights for
+each element within a window. If \code{NULL}, we take unit weights of width
+\code{n}. For an even window with uniform weights, \code{roll_median()}
+returns the lower of the two central values; the unweighted median instead
+averages those values. Variance and standard deviation require finite,
+non-negative frequency weights.}
 
-\item{by}{Calculate at every \code{by}-th point rather than every point.}
+\item{by}{A positive integer scalar. Calculate at every \code{by}-th point
+rather than every point.}
 
 \item{fill}{Either an empty vector (no fill), or a vector (recycled to)
 length 3 giving left, center and right fills.}
 
-\item{partial}{Compute windows at the edges of \code{x} over however
-many elements are in range, rather than filling them? Cannot be
-combined with \code{weights}, and \code{fill} does not apply.}
+\item{partial}{A single non-missing logical. Compute windows at the edges of
+\code{x} over however many elements are in range, rather than filling them?
+Cannot be combined with \code{weights}, and \code{fill} does not apply.}
 
 \item{align}{Align windows on the \code{"left"}, \code{"center"} or
 \code{"right"}.}
 
-\item{normalize}{Normalize window weights, such that they sum to \code{n}.}
+\item{normalize}{A single non-missing logical. Normalize window weights,
+such that they sum to \code{n}? Normalized weights must be finite and have
+a finite, non-zero sum.}
 
-\item{na.rm}{Remove missing values?}
+\item{na.rm}{A single non-missing logical. Remove missing values?}
 }
 \description{
 Efficient windowed / rolling operations. Each function

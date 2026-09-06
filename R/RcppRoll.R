@@ -13,19 +13,27 @@
 #'
 #' @name RcppRoll-exports
 #' @param x A numeric vector or a numeric matrix.
-#' @param n The window size. Ignored when \code{weights} is non-\code{NULL}.
-#' @param weights A vector of length \code{n}, giving the weights for each
-#'   element within a window. If \code{NULL}, we take unit weights of width \code{n}.
-#' @param by Calculate at every \code{by}-th point rather than every point.
+#' @param n A positive integer scalar giving the window size. Ignored when
+#'   \code{weights} is non-\code{NULL}.
+#' @param weights A non-empty vector of length \code{n}, giving the weights for
+#'   each element within a window. If \code{NULL}, we take unit weights of width
+#'   \code{n}. For an even window with uniform weights, \code{roll_median()}
+#'   returns the lower of the two central values; the unweighted median instead
+#'   averages those values. Variance and standard deviation require finite,
+#'   non-negative frequency weights.
+#' @param by A positive integer scalar. Calculate at every \code{by}-th point
+#'   rather than every point.
 #' @param fill Either an empty vector (no fill), or a vector (recycled to)
 #'   length 3 giving left, center and right fills.
-#' @param partial Compute windows at the edges of \code{x} over however
-#'   many elements are in range, rather than filling them? Cannot be
-#'   combined with \code{weights}, and \code{fill} does not apply.
+#' @param partial A single non-missing logical. Compute windows at the edges of
+#'   \code{x} over however many elements are in range, rather than filling them?
+#'   Cannot be combined with \code{weights}, and \code{fill} does not apply.
 #' @param align Align windows on the \code{"left"}, \code{"center"} or
 #'   \code{"right"}.
-#' @param normalize Normalize window weights, such that they sum to \code{n}.
-#' @param na.rm Remove missing values?
+#' @param normalize A single non-missing logical. Normalize window weights,
+#'   such that they sum to \code{n}? Normalized weights must be finite and have
+#'   a finite, non-zero sum.
+#' @param na.rm A single non-missing logical. Remove missing values?
 NULL
 
 # Argument checking shared by every wrapper below. 'missing_n' and
@@ -33,12 +41,48 @@ NULL
 # it is called in; conditions are raised against the caller too, so that a user
 # sees the roll_* call they made rather than this helper. Returns the window
 # size to use, which 'weights' overrides when the two disagree.
-checkRollArgs <- function(n, weights, partial, missing_n, missing_fill) {
+checkRollArgs <- function(n, weights, by, partial, normalize, na.rm,
+                          missing_n, missing_fill) {
 
   call <- sys.call(-1L)
 
-  if (!is.logical(partial) || length(partial) != 1L || is.na(partial)) {
-    stop(simpleError("'partial' should be TRUE or FALSE", call))
+  isPositiveInteger <- function(value) {
+    (is.integer(value) || is.double(value)) &&
+      !is.object(value) &&
+      length(value) == 1L &&
+      !is.na(value) &&
+      is.finite(value) &&
+      value >= 1 &&
+      value <= .Machine$integer.max &&
+      value == floor(value)
+  }
+
+  if (!isPositiveInteger(n)) {
+    stop(simpleError("'n' should be a positive integer scalar", call))
+  }
+  n <- as.integer(n)
+
+  if (!isPositiveInteger(by)) {
+    stop(simpleError("'by' should be a positive integer scalar", call))
+  }
+
+  isScalarLogical <- function(value) {
+    is.logical(value) && length(value) == 1L && !is.na(value)
+  }
+
+  for (name in c("partial", "normalize", "na.rm")) {
+    if (!isScalarLogical(get(name))) {
+      stop(simpleError(sprintf("'%s' should be TRUE or FALSE", name), call))
+    }
+  }
+
+  if (!is.null(weights)) {
+    weights_n <- length(weights)
+    if (!isPositiveInteger(weights_n)) {
+      stop(simpleError(
+        "'weights' should be non-empty and define a positive integer window size",
+        call))
+    }
   }
 
   if (partial) {
@@ -49,20 +93,15 @@ checkRollArgs <- function(n, weights, partial, missing_n, missing_fill) {
       warning(simpleWarning("'fill' is ignored when 'partial = TRUE'", call))
   }
 
-  if (!missing_n && !is.null(weights) && !isTRUE(length(weights) == n)) {
+  if (!missing_n && !is.null(weights) && weights_n != n) {
     warning(simpleWarning(sprintf(
       "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      length(weights), as.integer(n)
+      weights_n, n
     ), call))
-    n <- length(weights)
   }
 
-  # checked after 'weights' has had its say, since empty weights would
-  # otherwise smuggle in a window of size zero
-  n <- as.integer(n)[1L]
-  if (!isTRUE(n >= 1L)) {
-    stop(simpleError("'n' should be a positive integer", call))
-  }
+  if (!is.null(weights))
+    n <- weights_n
 
   n
 }
@@ -78,7 +117,8 @@ roll_mean <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_mean_impl,
@@ -106,7 +146,8 @@ roll_meanr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_mean_impl,
@@ -134,7 +175,8 @@ roll_meanl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_mean_impl,
@@ -161,7 +203,8 @@ roll_median <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_median_impl,
@@ -189,7 +232,8 @@ roll_medianr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_median_impl,
@@ -217,7 +261,8 @@ roll_medianl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_median_impl,
@@ -244,7 +289,8 @@ roll_min <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_min_impl,
@@ -272,7 +318,8 @@ roll_minr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_min_impl,
@@ -300,7 +347,8 @@ roll_minl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_min_impl,
@@ -327,7 +375,8 @@ roll_max <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_max_impl,
@@ -355,7 +404,8 @@ roll_maxr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_max_impl,
@@ -383,7 +433,8 @@ roll_maxl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_max_impl,
@@ -410,7 +461,8 @@ roll_prod <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_prod_impl,
@@ -438,7 +490,8 @@ roll_prodr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_prod_impl,
@@ -466,7 +519,8 @@ roll_prodl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_prod_impl,
@@ -493,7 +547,8 @@ roll_sum <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_sum_impl,
@@ -521,7 +576,8 @@ roll_sumr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_sum_impl,
@@ -549,7 +605,8 @@ roll_suml <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_sum_impl,
@@ -576,7 +633,8 @@ roll_sd <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_sd_impl,
@@ -604,7 +662,8 @@ roll_sdr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_sd_impl,
@@ -632,7 +691,8 @@ roll_sdl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_sd_impl,
@@ -659,7 +719,8 @@ roll_var <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_var_impl,
@@ -687,7 +748,8 @@ roll_varr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_var_impl,
@@ -715,7 +777,8 @@ roll_varl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_var_impl,
