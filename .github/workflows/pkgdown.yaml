@@ -1,7 +1,9 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples,
 # but deploying with GitHub's first-party Pages actions instead of a
 # third-party action pushing to a gh-pages branch. Requires the repository's
-# Pages source to be set to "GitHub Actions".
+# Pages source to be set to "GitHub Actions", and the "github-pages"
+# environment to allow deployments from "v*" tags (Settings > Environments)
+# so that release-triggered runs are not rejected by the branch policy.
 on:
   push:
     branches: [main, master]
