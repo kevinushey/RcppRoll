@@ -1,0 +1,36 @@
+diff --git a/src/RcppRoll.cpp b/src/RcppRoll.cpp
+index b0713c8..a21c293 100644
+--- a/src/RcppRoll.cpp
++++ b/src/RcppRoll.cpp
+@@ -266,0 +267,2 @@ public:
++  void reserve(int) {}
++
+@@ -337,0 +340,2 @@ public:
++  void reserve(int) {}
++
+@@ -361,0 +366,2 @@ public:
++  void reserve(int) {}
++
+@@ -757,0 +764,4 @@ public:
++    clear();
++  }
++
++  void reserve(int n) {
+@@ -760,2 +769,0 @@ public:
+-
+-    clear();
+@@ -999 +1007,5 @@ public:
+-  ProdAccumulator(Callable, double const* x, int n) : Base(x) {
++  ProdAccumulator(Callable, double const* x, int) : Base(x) {
++    clear();
++  }
++
++  void reserve(int n) {
+@@ -1004 +1015,0 @@ public:
+-    clear();
+@@ -1999,0 +2011 @@ void roll_partial_windows(Accumulator const& prototype,
++    accumulator.reserve(width);
+@@ -2077,0 +2090 @@ int roll_fill_windows(Accumulator const& prototype,
++    accumulator.reserve(n);
+@@ -2167,0 +2181 @@ void roll_nofill_windows(Accumulator const& prototype,
++    accumulator.reserve(n);

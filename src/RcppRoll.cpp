@@ -333,7 +333,7 @@ public:
     : f_(f), x_(x) {}
 
   // an operation with no incremental form always reads the window afresh
-  static bool worthwhile(int, int) { return false; }
+  static bool worthwhile(int, int, int) { return false; }
 
   double compute(int start, int end) {
     return f_(x_, start, end - start + 1);
@@ -393,7 +393,7 @@ public:
   // crossover scales with 'by' -- and a 'by' past the crossover includes
   // every 'by' wide enough to leave gaps, where there is nothing to carry
   // forward at all.
-  static bool worthwhile(int n, int by) { return n >= 56LL * by; }
+  static bool worthwhile(int n, int by, int) { return n >= 56LL * by; }
 
   bool degraded() const { return total_.degraded(); }
 
@@ -475,7 +475,7 @@ public:
 
   // two running sums against two passes over the window, so this pays off
   // sooner than a plain total does; as above, the crossover scales with 'by'
-  static bool worthwhile(int n, int by) { return n >= 16LL * by; }
+  static bool worthwhile(int n, int by, int) { return n >= 16LL * by; }
 
   bool degraded() const {
 
@@ -615,7 +615,7 @@ public:
   // maintaining the deque costs more than a stretch of comparisons the
   // compiler can turn into branchless minimums; each step slides the window
   // 'by' observations, so the crossover scales with 'by' as above
-  static bool worthwhile(int n, int by) { return n >= 32LL * by; }
+  static bool worthwhile(int n, int by, int) { return n >= 32LL * by; }
 
   // comparisons are exact, so there is nothing to lose
   bool degraded() const { return false; }
@@ -765,8 +765,10 @@ public:
   // step pays 'by' insertions and removals of ~n/2 elements each where the
   // selection pays one pass whatever 'by' is; the measured crossover sits at
   // 'by' about a quarter of 'n', independent of 'n'.
-  static bool worthwhile(int n, int by) {
-    return by == 1 || n > 4LL * by;
+  static bool worthwhile(int n, int by, int outputs) {
+    // A handful of selections costs less than building a sorted window or
+    // both heaps when there are too few slides to repay that initial work.
+    return outputs > 4 && (by == 1 || n > 4LL * by);
   }
 
   // the window is carried in full rather than summarized, so likewise
@@ -1007,7 +1009,7 @@ public:
   // one multiply entering and an amortized one leaving, against a
   // from-scratch pass the compiler vectorizes well; as elsewhere, each step
   // slides the window 'by' observations, so the crossover scales with 'by'
-  static bool worthwhile(int n, int by) { return n >= 24LL * by; }
+  static bool worthwhile(int n, int by, int) { return n >= 24LL * by; }
 
   // products are never differenced, so there is no cancellation to guard;
   // whatever overflows or dies away is remade whole by the next flip
@@ -1644,6 +1646,10 @@ private:
 // remain, matching var()'s behaviour for a vector of length 0 or 1. The first
 // pass also reports whether it saw an NA at all, so that the NA-intolerant
 // form below does not need a scan of its own.
+// With na.rm = FALSE, the first missing value settles the result: skip the
+// rest of the window and the second pass. The template leaves NA removal's
+// full two-pass calculation unchanged.
+template <bool NA_RM>
 inline double window_var(double const* x,
                          int offset,
                          int n,
@@ -1657,6 +1663,7 @@ inline double window_var(double const* x,
     double value = x[offset + i];
     if (is_nan(value)) {
       has_na = true;
+      if (!NA_RM) return NA_REAL;
     } else {
       total += value;
       ++count;
@@ -1704,6 +1711,7 @@ inline double window_var(double const* x,
 // Since 'normalize' scales the weights to sum to n, equal weights reduce this
 // to window_var() above, so a uniform weight vector agrees with the unweighted
 // routines. NAs are dropped from the values and their own weights together.
+template <bool NA_RM>
 inline double weighted_var(double const* x,
                            int offset,
                            double const* weights,
@@ -1719,6 +1727,7 @@ inline double weighted_var(double const* x,
     double value = x[offset + i];
     if (is_nan(value)) {
       has_na = true;
+      if (!NA_RM) return NA_REAL;
     } else {
       weights_sum += weights[i];
       weighted_total += weights[i] * value;
@@ -1766,7 +1775,7 @@ struct var_f<false> {
 
   inline double operator()(double const* x, int offset, int n) {
     bool has_na;
-    double result = window_var(x, offset, n, has_na);
+    double result = window_var<false>(x, offset, n, has_na);
     return has_na ? NA_REAL : result;
   }
 
@@ -1775,7 +1784,7 @@ struct var_f<false> {
                            double const* weights,
                            int n) {
     bool has_na;
-    double result = weighted_var(x, offset, weights, n, has_na);
+    double result = weighted_var<false>(x, offset, weights, n, has_na);
     return has_na ? NA_REAL : result;
   }
 
@@ -1786,7 +1795,7 @@ struct var_f<true> {
 
   inline double operator()(double const* x, int offset, int n) {
     bool has_na;
-    return window_var(x, offset, n, has_na);
+    return window_var<true>(x, offset, n, has_na);
   }
 
   inline double operator()(double const* x,
@@ -1794,7 +1803,7 @@ struct var_f<true> {
                            double const* weights,
                            int n) {
     bool has_na;
-    return weighted_var(x, offset, weights, n, has_na);
+    return weighted_var<true>(x, offset, weights, n, has_na);
   }
 
 };
@@ -2037,7 +2046,8 @@ void roll_vector_partial_into(Callable f,
   int width = n < x_n ? n : x_n;
 
   typedef typename accumulator_for<Callable>::type Incremental;
-  if (Incremental::worthwhile(n, by))
+  int outputs = x_n ? (x_n - 1) / by + 1 : 0;
+  if (Incremental::worthwhile(n, by, outputs))
     roll_partial_windows(
       Incremental(f, x, width), x_n, output, width, by,
       leftOffset, rightOffset, threads);
@@ -2127,7 +2137,8 @@ void roll_vector_fill_into(Callable f,
       output, n, by, i, to, padLeftTimes, threads);
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
-    i = Incremental::worthwhile(n, by) ?
+    int outputs = (ops_n - 1) / by + 1;
+    i = Incremental::worthwhile(n, by, outputs) ?
       roll_fill_windows(
         Incremental(f, x, n), output, n, by, i, to, padLeftTimes, threads) :
       roll_fill_windows(
@@ -2193,7 +2204,7 @@ void roll_vector_nofill_into(Callable f,
       threads);
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
-    if (Incremental::worthwhile(n, by))
+    if (Incremental::worthwhile(n, by, output_n))
       roll_nofill_windows(
         Incremental(f, x, n), output, n, by, output_n, threads);
     else
