@@ -244,6 +244,811 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// Window kernels
+//
+// Reading a window from scratch is a serial chain: each add or compare waits
+// on the one before, so the loop runs at the latency of a floating point
+// operation however wide the machine's vector units are. The kernels below
+// express each operation one observation at a time over T windows held side by
+// side, and Reduction<> drives them a strip of windows at a time. The lanes are
+// independent, so the compiler turns the lane loops into SIMD -- while each
+// window still meets its observations in the order it always did, and so comes
+// out to the same bits.
+//
+// A kernel supplies a State<T> of lanes, init(), one step() per observation in
+// unweighted and weighted forms, and finish() for one lane. A two-pass kernel
+// also supplies prepare() and step2().
+// ---------------------------------------------------------------------------
+
+struct OnePass {
+  static const int PASSES = 1;
+  template <typename Lanes> static void prepare(Lanes&, int) {}
+  template <typename Lanes> static void step2(Lanes&, double const*, int) {}
+  template <typename Lanes> static void step2(Lanes&, double const*, int, double) {}
+};
+
+// Which non-value a window that summed (or multiplied) to a NaN reports: NA
+// where any of its values, or their weights, is NA, and NaN otherwise. The
+// lane arithmetic carries one NaN's payload or the other's as the hardware
+// sees fit, so this settles the question the way the incremental
+// accumulators do.
+inline double missing_kind(double const* window, int n, double const* weights) {
+  for (int k = 0; k < n; ++k) {
+    if (ISNA(window[k]))
+      return NA_REAL;
+    if (weights && ISNA(weights[k]))
+      return NA_REAL;
+  }
+  return R_NaN;
+}
+
+// sum() and mean(). Under na.rm a masked-out value adds -0.0, the one addend
+// that leaves every total alone -- adding +0.0 would flip an all-negative-zero
+// total's sign -- and what was actually summed, values or weight, is what the
+// mean divides by. A count of values is a 64-bit integer: the same width as
+// the double lanes, so that stepping it by a truth value is one vector
+// subtraction of the comparison's mask, where a double count would have the
+// mask converted first.
+template <bool NA_RM, bool IS_MEAN>
+struct SumKernel : OnePass {
+
+  template <int T>
+  struct State {
+    double total[T];
+    double weight_total[T];
+    long long count[T];
+  };
+
+  template <int T>
+  static void init(State<T>& s) {
+    for (int t = 0; t < T; ++t) {
+      s.total[t] = 0.0;
+      s.weight_total[t] = 0.0;
+      s.count[t] = 0;
+    }
+  }
+
+  template <int T>
+  static void step(State<T>& s, double const* p, int stride) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      if (NA_RM) {
+        bool ok = !is_nan(value);
+        s.total[t] += ok ? value : -0.0;
+        s.count[t] += ok;
+      } else {
+        s.total[t] += value;
+      }
+    }
+  }
+
+  template <int T>
+  static void step(State<T>& s, double const* p, int stride, double weight) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      if (NA_RM) {
+        bool ok = !is_nan(value);
+        s.total[t] += ok ? value * weight : -0.0;
+        s.weight_total[t] += ok ? weight : -0.0;
+      } else {
+        s.total[t] += value * weight;
+      }
+    }
+  }
+
+  // without na.rm, 'normalize' has already made the weights sum to n
+  template <int T>
+  static double finish(State<T> const& s,
+                       int t,
+                       int n,
+                       double const* window,
+                       double const* weights) {
+    double total = s.total[t];
+    if (!NA_RM && is_nan(total))
+      total = missing_kind(window, n, weights);
+    if (!IS_MEAN)
+      return total;
+    if (!NA_RM)
+      return total / n;
+    return total / (weights ? s.weight_total[t] : (double) s.count[t]);
+  }
+
+};
+
+// min() and max(). The selects are the ones the from-scratch loops always
+// used, so ties -- and with them the sign of a zero -- resolve as before: min
+// keeps the earlier of two equal values, max the later. A NaN loses every
+// comparison and so drops out on its own; without na.rm, a count of the values
+// that were not NaN says whether the window reports NA instead. The count
+// looks at the observation, not the weighted product: an infinite value
+// against a zero weight was never treated as missing.
+template <bool NA_RM, bool IS_MIN>
+struct ExtremumKernel : OnePass {
+
+  template <int T>
+  struct State {
+    double value[T];
+    long long count[T];
+  };
+
+  template <int T>
+  static void init(State<T>& s) {
+    for (int t = 0; t < T; ++t) {
+      s.value[t] = IS_MIN ? R_PosInf : R_NegInf;
+      s.count[t] = 0;
+    }
+  }
+
+  template <int T>
+  static void step(State<T>& s, double const* p, int stride) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      if (!NA_RM)
+        s.count[t] += !is_nan(value);
+      s.value[t] = select(value, s.value[t]);
+    }
+  }
+
+  template <int T>
+  static void step(State<T>& s, double const* p, int stride, double weight) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      if (!NA_RM)
+        s.count[t] += !is_nan(value);
+      s.value[t] = select(value * weight, s.value[t]);
+    }
+  }
+
+  template <int T>
+  static double finish(State<T> const& s,
+                       int t,
+                       int n,
+                       double const*,
+                       double const*) {
+    if (!NA_RM && s.count[t] != n)
+      return NA_REAL;
+    return s.value[t];
+  }
+
+private:
+
+  static double select(double value, double incumbent) {
+    if (IS_MIN)
+      return value < incumbent ? value : incumbent;
+    // max without na.rm inverted min's comparison, which takes the later of
+    // two equal values; the na.rm form asks '>=' so that a NaN loses -- and
+    // still takes the later
+    if (!NA_RM)
+      return value < incumbent ? incumbent : value;
+    return value >= incumbent ? value : incumbent;
+  }
+
+};
+
+// prod(). A masked-out value multiplies by one, which is exact.
+template <bool NA_RM>
+struct ProdKernel : OnePass {
+
+  template <int T>
+  struct State {
+    double product[T];
+  };
+
+  template <int T>
+  static void init(State<T>& s) {
+    for (int t = 0; t < T; ++t)
+      s.product[t] = 1.0;
+  }
+
+  template <int T>
+  static void step(State<T>& s, double const* p, int stride) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      s.product[t] *= NA_RM && is_nan(value) ? 1.0 : value;
+    }
+  }
+
+  template <int T>
+  static void step(State<T>& s, double const* p, int stride, double weight) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      s.product[t] *= NA_RM && is_nan(value) ? 1.0 : value * weight;
+    }
+  }
+
+  template <int T>
+  static double finish(State<T> const& s,
+                       int t,
+                       int n,
+                       double const* window,
+                       double const* weights) {
+    double product = s.product[t];
+    if (!NA_RM && is_nan(product))
+      return missing_kind(window, n, weights);
+    return product;
+  }
+
+};
+
+// var() and sd(). Corrected two-pass: the deviations are measured from a mean
+// that is itself rounded, and their total collects exactly the error that
+// introduces -- subtracting it out takes the rounding back out. Without it a
+// window whose spread is small beside its mean loses most of its digits.
+//
+// Weights are frequency weights:
+//
+//   m  = sum(w * x) / sum(w)
+//   s2 = sum(w * (x - m)^2) / (sum(w) - 1)
+//
+// Unweighted, the count stands in for the weight total, and one finish()
+// serves both.
+// NAs drop out together with their own weights: a masked-out observation
+// contributes a product of zeros to the sums, which is exact, since none of
+// the sums can be a negative zero to be disturbed by it. Zeros rather than
+// the -0.0 the other kernels add so that the products stay contractible into
+// fused multiply-adds, as the loops they replace were.
+template <bool NA_RM, bool IS_SD>
+struct VarKernel {
+
+  static const int PASSES = 2;
+
+  template <int T>
+  struct State {
+    double total[T];          // sum of the (weighted) values
+    double weight_total[T];   // sum of the weights; unweighted, the count
+    double count[T];          // values that were not NaN, when weighted
+    double mean[T];
+    double squares[T];
+    double residual[T];
+  };
+
+  template <int T>
+  static void init(State<T>& s) {
+    for (int t = 0; t < T; ++t) {
+      s.total[t] = 0.0;
+      s.weight_total[t] = 0.0;
+      s.count[t] = 0.0;
+      s.mean[t] = 0.0;
+      s.squares[t] = 0.0;
+      s.residual[t] = 0.0;
+    }
+  }
+
+  // Unweighted, the weight total is the count. The counts are doubles here,
+  // stepped by a select between constants: this kernel measured faster that
+  // way than with the integer lanes the others use.
+  template <int T>
+  static void step(State<T>& s, double const* p, int stride) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      bool ok = !is_nan(value);
+      s.total[t] += ok ? value : -0.0;
+      s.weight_total[t] += ok ? 1.0 : 0.0;
+    }
+  }
+
+  template <int T>
+  static void step(State<T>& s, double const* p, int stride, double weight) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      bool ok = !is_nan(value);
+      double w = ok ? weight : 0.0;
+      double v = ok ? value : 0.0;
+      s.total[t] += w * v;
+      s.weight_total[t] += ok ? weight : -0.0;
+      s.count[t] += ok ? 1.0 : 0.0;
+    }
+  }
+
+  template <int T>
+  static void prepare(State<T>& s, int) {
+    for (int t = 0; t < T; ++t)
+      s.mean[t] = s.total[t] / s.weight_total[t];
+  }
+
+  template <int T>
+  static void step2(State<T>& s, double const* p, int stride) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      double difference = is_nan(value) ? 0.0 : value - s.mean[t];
+      s.squares[t] += difference * difference;
+      s.residual[t] += difference;
+    }
+  }
+
+  template <int T>
+  static void step2(State<T>& s, double const* p, int stride, double weight) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      bool ok = !is_nan(value);
+      double w = ok ? weight : 0.0;
+      double difference = ok ? value - s.mean[t] : 0.0;
+      s.squares[t] += w * difference * difference;
+      s.residual[t] += w * difference;
+    }
+  }
+
+  template <int T>
+  static double finish(State<T> const& s,
+                       int t,
+                       int n,
+                       double const*,
+                       double const* weights) {
+
+    double count = weights ? s.count[t] : s.weight_total[t];
+    if (!NA_RM && count != n)
+      return NA_REAL;
+
+    // NA for fewer than two values, matching var() on a vector of length 0 or
+    // 1; a weight total that is zero or negative (possible with 'normalize =
+    // FALSE', or after dropping NAs) has no meaningful answer either
+    double weight = s.weight_total[t];
+    double result;
+    if (count < 2 || !(weight > 1)) {
+      result = NA_REAL;
+    } else if (s.squares[t] == R_PosInf) {
+      // the deviations squared past what a double can hold, so the variance
+      // is out of range too -- and the correction would only turn it into a
+      // NaN
+      result = R_PosInf;
+    } else {
+      double total = s.squares[t] - s.residual[t] * s.residual[t] / weight;
+      if (total < 0.0) total = 0.0;
+      result = total / (weight - 1);
+    }
+
+    return IS_SD ? window_sqrt(result) : result;
+  }
+
+};
+
+// Drives a kernel over one window, or over a strip of them. A strip walks
+// WIDTH windows abreast.
+template <typename Kernel>
+struct Reduction {
+
+  // Wide enough that the lanes' arithmetic runs ahead of the loads feeding
+  // it; wider only spills the lanes out of registers.
+  static const int WIDTH = 16;
+
+  double operator()(double const* x, int offset, int n) const {
+    double result;
+    run<1, 1>(x + offset, 1, n, (double const*) NULL, &result, 1);
+    return result;
+  }
+
+  double operator()(double const* x,
+                    int offset,
+                    double const* weights,
+                    int n) const {
+    double result;
+    run<1, 1>(x + offset, 1, n, weights, &result, 1);
+    return result;
+  }
+
+  // 'count' windows of width 'n' starting at 'start' and every 'by' after it,
+  // written to out[0], out[stride], ...
+  void strip(double const* x,
+             int start,
+             int by,
+             int n,
+             double const* weights,
+             int count,
+             double* out,
+             int stride) const {
+
+    double const* p = x + start;
+    int j = 0;
+
+    // A strip's tail, and a short strip -- a matrix of short columns is made
+    // of them -- still run a few windows abreast. Windows 'by' apart have
+    // their lanes gathered rather than loaded whole, and measured best at
+    // half the width.
+    if (by == 1) {
+      for (; j + WIDTH <= count; j += WIDTH)
+        run<WIDTH, 1>(p + j, 1, n, weights, out + j * stride, stride);
+      for (; j + 4 <= count; j += 4)
+        run<4, 1>(p + j, 1, n, weights, out + j * stride, stride);
+    } else {
+      for (; j + WIDTH / 2 <= count; j += WIDTH / 2)
+        run<WIDTH / 2, 0>(p + j * by, by, n, weights, out + j * stride, stride);
+      for (; j + 4 <= count; j += 4)
+        run<4, 0>(p + j * by, by, n, weights, out + j * stride, stride);
+    }
+
+    for (; j < count; ++j)
+      run<1, 1>(p + j * by, 1, n, weights, out + j * stride, stride);
+
+  }
+
+private:
+
+  // T windows abreast, neighbouring windows' observations STRIDE apart -- or
+  // 'by' apart where STRIDE is zero. A constant stride is what lets the
+  // compiler fetch a step's observations as one vector.
+  template <int T, int STRIDE>
+  static void run(double const* p,
+                  int by,
+                  int n,
+                  double const* weights,
+                  double* out,
+                  int stride_out) {
+
+    int stride = STRIDE ? STRIDE : by;
+
+    typename Kernel::template State<T> state;
+    Kernel::init(state);
+
+    if (weights) {
+      for (int k = 0; k < n; ++k)
+        Kernel::step(state, p + k, stride, weights[k]);
+    } else {
+      for (int k = 0; k < n; ++k)
+        Kernel::step(state, p + k, stride);
+    }
+
+    if (Kernel::PASSES == 2) {
+      Kernel::prepare(state, n);
+      if (weights) {
+        for (int k = 0; k < n; ++k)
+          Kernel::step2(state, p + k, stride, weights[k]);
+      } else {
+        for (int k = 0; k < n; ++k)
+          Kernel::step2(state, p + k, stride);
+      }
+    }
+
+    for (int t = 0; t < T; ++t)
+      out[t * stride_out] = Kernel::finish(state, t, n, p + t * stride, weights);
+
+  }
+
+};
+
+// ---------------------------------------------------------------------------
+// Windowing functions
+//
+// These compute a window from scratch, or a strip of windows abreast. They
+// still carry the weighted forms, which have no incremental equivalent -- a
+// weight belongs to a position within the window, so sliding the window
+// re-pairs every weight with a different observation.
+// ---------------------------------------------------------------------------
+
+template <bool NA_RM>
+struct mean_f : Reduction< SumKernel<NA_RM, true> > {};
+
+template <bool NA_RM>
+struct sum_f : Reduction< SumKernel<NA_RM, false> > {};
+
+template <bool NA_RM>
+struct min_f : Reduction< ExtremumKernel<NA_RM, true> > {};
+
+template <bool NA_RM>
+struct max_f : Reduction< ExtremumKernel<NA_RM, false> > {};
+
+template <bool NA_RM>
+struct prod_f : Reduction< ProdKernel<NA_RM> > {};
+
+template <bool NA_RM>
+struct var_f : Reduction< VarKernel<NA_RM, false> > {};
+
+template <bool NA_RM>
+struct sd_f : Reduction< VarKernel<NA_RM, true> > {};
+
+// The strip form of a function with no lane-wise kernel: one window at a time.
+template <typename Callable>
+inline void strip_singly(Callable& f,
+                         double const* x,
+                         int start,
+                         int by,
+                         int n,
+                         double const* weights,
+                         int count,
+                         double* out,
+                         int stride) {
+
+  for (int j = 0; j < count; ++j) {
+    int offset = start + j * by;
+    out[j * stride] = weights ? f(x, offset, weights, n) : f(x, offset, n);
+  }
+
+}
+
+// The sorted form of the weighted median: order the window, then walk the
+// cumulative weight up to the crossing. Kept as the fallback for weights the
+// selection below cannot order -- a negative, NaN, or infinite weight makes
+// the cumulative weight non-monotonic, or not a number, and this scan's
+// crossing is then the defined answer.
+inline double weighted_median_scan(
+    std::vector< std::pair<double, double> >& scratch) {
+
+  std::sort(scratch.begin(), scratch.end());
+
+  double weights_sum = 0.0;
+  for (size_t i = 0; i < scratch.size(); ++i)
+    weights_sum += scratch[i].second;
+
+  // guard against zero, negative, or non-finite weight sums, which would
+  // otherwise let the search below run past the end of the window
+  if (!(weights_sum > 0))
+    return NA_REAL;
+
+  size_t k = 0;
+  double remaining = weights_sum;
+  for (; k + 1 < scratch.size(); ++k) {
+    remaining -= scratch[k].second;
+    if (!(remaining > weights_sum / 2))
+      break;
+  }
+
+  return scratch[k].first;
+
+}
+
+// Compute a weighted median, ignoring any NAs in the window: the smallest
+// value whose cumulative weight, taken in value order, reaches half the total.
+// The weights are tied to their associated values first, since a weight
+// applies to the value at its own position rather than to the value that ends
+// up ranked there. 'scratch' and 'spare' belong to the caller, so that a pass
+// over many windows reuses two buffers rather than allocating for each window.
+//
+// Rather than sorting the window to walk its cumulative weight, this
+// partitions around a pivot and descends into the part holding the crossing:
+// expected linear time in the window size, where the sort pays an extra log
+// factor. Partitioning writes into the spare buffer rather than swapping in
+// place -- each pair is read once and written at most once, and the pivot's
+// run, which is only ever reported and never descended into, is not moved at
+// all.
+inline double weighted_median(double const* x,
+                              int offset,
+                              double const* weights,
+                              int n,
+                              std::vector< std::pair<double, double> >& scratch,
+                              std::vector< std::pair<double, double> >& spare) {
+
+  scratch.clear();
+  bool orderly = true;
+  double weights_sum = 0.0;
+  for (int i = 0; i < n; ++i) {
+    double value = x[offset + i];
+    if (is_nan(value))
+      continue;
+    double weight = weights[i];
+    if (!(weight >= 0.0) || !is_finite(weight))
+      orderly = false;
+    weights_sum += weight;
+    scratch.push_back(std::make_pair(value, weight));
+  }
+
+  if (scratch.empty())
+    return NA_REAL;
+
+  // the descent below leans on a cumulative weight that only ever grows, and
+  // on comparisons that mean what they say; a weight set (or total) that
+  // cannot promise that takes the scan
+  if (!orderly || !is_finite(weights_sum))
+    return weighted_median_scan(scratch);
+
+  // guard against an all-zero weight total, which has no crossing to find
+  if (!(weights_sum > 0))
+    return NA_REAL;
+
+  double target = weights_sum / 2;
+
+  if (spare.size() < scratch.size())
+    spare.resize(scratch.size());
+
+  std::pair<double, double>* from = &scratch[0];
+  std::pair<double, double>* into = &spare[0];
+  size_t size = scratch.size();
+  double below = 0.0; // total weight of the values ranked before 'from'
+
+  while (size > 1) {
+
+    // median-of-three pivot: windows of already-ordered data are common, and
+    // an end-of-range pivot would descend one element at a time through them
+    double a = from[0].first;
+    double b = from[size / 2].first;
+    double c = from[size - 1].first;
+    double pivot = a < b
+      ? (b < c ? b : (a < c ? c : a))
+      : (a < c ? a : (b < c ? c : b));
+
+    // Split off the values below and above the pivot at the two ends of the
+    // other buffer, keeping the pivot's run whole so that repeated values
+    // cannot stall the descent. Which side a value lands on is a coin flip no
+    // branch predictor can learn, so the split is branchless: every element
+    // is written to both frontiers, and only the matching side's counter --
+    // and weight -- moves. A slot past its counter holds a stale copy that
+    // the next committed write overwrites, and the span left between the two
+    // frontiers is never read.
+    size_t n_lt = 0;
+    size_t n_gt = 0;
+    double weight_lt = 0.0;
+    double weight_eq = 0.0;
+
+    for (size_t i = 0; i < size; ++i) {
+      double value = from[i].first;
+      double weight = from[i].second;
+      bool lt = value < pivot;
+      bool gt = pivot < value;
+      into[n_lt] = from[i];
+      into[size - 1 - n_gt] = from[i];
+      n_lt += lt;
+      n_gt += gt;
+      weight_lt += lt ? weight : 0.0;
+      weight_eq += (lt | gt) ? 0.0 : weight;
+    }
+
+    // Descend into whichever part the cumulative weight crosses half within,
+    // the buffer just read becoming the next level's writing room. The values
+    // below the pivot never hold the crossing when they are empty: reusing
+    // 'after_eq' as the next 'below' keeps the comparison that sent the
+    // descent rightwards bit-identical to the one guarding the left.
+    double after_lt = below + weight_lt;
+    double after_eq = after_lt + weight_eq;
+
+    std::pair<double, double>* room = from;
+    if (!(weights_sum - after_lt > target)) {
+      from = into;
+      size = n_lt;
+    } else if (n_gt && weights_sum - after_eq > target) {
+      below = after_eq;
+      from = into + (size - n_gt);
+      size = n_gt;
+    } else {
+      return pivot;
+    }
+    into = room;
+
+  }
+
+  return from[0].first;
+
+}
+
+// Select the median out of 'scratch', which this reorders. std::nth_element
+// places the middle value in linear time, where a partial sort of the lower
+// half of the window would cost an extra log factor. The lower form reports
+// the lower of an even window's two middle values rather than their average,
+// which is the value a weighted median with uniform weights selects.
+inline double select_median(std::vector<double>& scratch, bool lower) {
+
+  size_t n = scratch.size();
+  if (n == 0)
+    return NA_REAL;
+
+  if (lower) {
+    std::nth_element(
+      scratch.begin(), scratch.begin() + (n - 1) / 2, scratch.end());
+    return scratch[(n - 1) / 2];
+  }
+
+  std::nth_element(
+    scratch.begin(), scratch.begin() + n / 2, scratch.end());
+  double upper = scratch[n / 2];
+
+  if (n % 2 == 0) {
+    // everything below the midpoint is already partitioned below it, so the
+    // other middle value is simply the largest of that part
+    double lower_middle =
+      *std::max_element(scratch.begin(), scratch.begin() + n / 2);
+    return (lower_middle + upper) / 2;
+  }
+
+  return upper;
+
+}
+
+// The weighted forms select an observation whatever LOWER says: a weighted
+// median never interpolates, so it is its own lower form.
+template <bool NA_RM, bool LOWER = false>
+struct median_f;
+
+template <bool LOWER>
+struct median_f<false, LOWER> {
+
+  inline double operator()(double const* x, int offset, int n) {
+
+    for (int i = offset; i < offset + n; i++)
+      if (is_nan(x[i]))
+        return NA_REAL;
+
+    scratch_.assign(x + offset, x + offset + n);
+    return select_median(scratch_, LOWER);
+
+  }
+
+  inline double operator()(double const* x,
+                           int offset,
+                           double const* weights,
+                           int n) {
+
+    for (int i = offset; i < offset + n; i++)
+      if (is_nan(x[i]))
+        return NA_REAL;
+
+    return weighted_median(x, offset, weights, n,
+                           weighted_scratch_, weighted_spare_);
+  }
+
+  void strip(double const* x,
+             int start,
+             int by,
+             int n,
+             double const* weights,
+             int count,
+             double* out,
+             int stride) {
+    strip_singly(*this, x, start, by, n, weights, count, out, stride);
+  }
+
+private:
+
+  std::vector<double> scratch_;
+  std::vector< std::pair<double, double> > weighted_scratch_;
+  std::vector< std::pair<double, double> > weighted_spare_;
+
+};
+
+template <bool LOWER>
+struct median_f<true, LOWER> {
+
+  inline double operator()(double const* x, int offset, int n) {
+
+    scratch_.clear();
+    scratch_.reserve(n);
+    for (int i = offset; i < offset + n; i++)
+      if (!is_nan(x[i]))
+        scratch_.push_back(x[i]);
+
+    return select_median(scratch_, LOWER);
+
+  }
+
+  inline double operator()(double const* x,
+                           int offset,
+                           double const* weights,
+                           int n) {
+
+    return weighted_median(x, offset, weights, n,
+                           weighted_scratch_, weighted_spare_);
+  }
+
+  void strip(double const* x,
+             int start,
+             int by,
+             int n,
+             double const* weights,
+             int count,
+             double* out,
+             int stride) {
+    strip_singly(*this, x, start, by, n, weights, count, out, stride);
+  }
+
+private:
+
+  std::vector<double> scratch_;
+  std::vector< std::pair<double, double> > weighted_scratch_;
+  std::vector< std::pair<double, double> > weighted_spare_;
+
+};
+
+// Whether carrying a window forward beats reading strips of windows from
+// scratch. The crossovers were measured against the lane-wise kernels:
+// 'contiguous' is the window size at which the two cost the same for a 'by'
+// of one, where a strip loads its lanes as vectors. A strip of windows
+// further apart has to gather its lanes, which costs more per observation,
+// so 'strided' -- in multiples of 'by' -- is lower. Either way a 'by' past
+// the crossover includes every 'by' wide enough to leave gaps between the
+// windows, where there is nothing to carry forward at all.
+inline bool incrementalWins(int n, int by, int contiguous, int strided) {
+  if (by == 1)
+    return n >= contiguous;
+  return n >= strided * (long long) by;
+}
+
+// ---------------------------------------------------------------------------
 // Windowed accumulators
 //
 // Computing each window from scratch costs O(n) per point. The accumulators
@@ -251,6 +1056,12 @@ private:
 // observations that enter and leave it. That works because every sequence of
 // windows generated here moves monotonically: neither edge ever steps
 // backwards, whatever 'by', 'align' and 'partial' are set to.
+//
+// Every accumulator answers to the same two calls: compute(start, end) for
+// one window, of any width, and computeStrip() for a run of whole windows a
+// fixed 'by' apart. The drivers hand each chunk over as a strip, so that an
+// accumulator with a better way to walk a run of windows -- the block scans
+// behind min() and max(), or the lane-wise kernels above -- gets to use it.
 // ---------------------------------------------------------------------------
 
 // Drives one accumulator over a sequence of windows. Derived classes supply
@@ -261,8 +1072,8 @@ class WindowAccumulator {
 
 public:
 
-  WindowAccumulator(double const* x)
-    : x_(x), start_(0), end_(-1), credit_(0) {}
+  WindowAccumulator(double const* x, int n)
+    : x_(x), n_(n), start_(0), end_(-1), credit_(0) {}
 
   double compute(int start, int end) {
 
@@ -310,9 +1121,18 @@ public:
     return self.value();
   }
 
+  // a run of whole windows is walked one slide at a time
+  void computeStrip(int start, int by, int count, double* out, int stride) {
+    for (int j = 0; j < count; ++j) {
+      int first = start + j * by;
+      out[j * stride] = compute(first, first + n_ - 1);
+    }
+  }
+
 protected:
 
   double const* x_;
+  int n_;
   int start_;
   int end_;
   int credit_;
@@ -321,16 +1141,15 @@ protected:
 
 // Recomputes the window on every call: the fallback whenever carrying state
 // forward is not worthwhile, and the only form an operation without an
-// incremental equivalent ever takes. Adapting the callable to the same
-// compute(start, end) protocol lets one set of window-walking drivers serve
-// both paths.
+// incremental equivalent ever takes. A strip goes to the function's own strip
+// form, which for the kernels above walks its windows abreast.
 template <typename Callable>
 class DirectAccumulator {
 
 public:
 
-  DirectAccumulator(Callable f, double const* x, int /* n */)
-    : f_(f), x_(x) {}
+  DirectAccumulator(Callable f, double const* x, int n)
+    : f_(f), x_(x), n_(n) {}
 
   // an operation with no incremental form always reads the window afresh
   static bool worthwhile(int, int, int) { return false; }
@@ -339,28 +1158,35 @@ public:
     return f_(x_, start, end - start + 1);
   }
 
+  void computeStrip(int start, int by, int count, double* out, int stride) {
+    f_.strip(x_, start, by, n_, (double const*) NULL, count, out, stride);
+  }
+
 private:
 
   Callable f_;
   double const* x_;
+  int n_;
 
 };
 
-// Adapts the weighted form of a windowing function to the same
-// compute(start, end) protocol, so the chunked drivers below serve the
-// weighted path too. Weighted windows are never clipped -- 'weights' is
-// rejected together with 'partial' -- so the width recovered here is always
-// the weights' own length.
+// The weighted form of a windowing function. Weighted windows are never
+// clipped -- 'weights' is rejected together with 'partial' -- so the width is
+// always the weights' own length.
 template <typename Callable>
 class WeightedAccumulator {
 
 public:
 
-  WeightedAccumulator(Callable f, double const* x, double const* weights)
-    : f_(f), x_(x), weights_(weights) {}
+  WeightedAccumulator(Callable f, double const* x, double const* weights, int n)
+    : f_(f), x_(x), weights_(weights), n_(n) {}
 
   double compute(int start, int end) {
     return f_(x_, start, weights_, end - start + 1);
+  }
+
+  void computeStrip(int start, int by, int count, double* out, int stride) {
+    f_.strip(x_, start, by, n_, weights_, count, out, stride);
   }
 
 private:
@@ -368,6 +1194,7 @@ private:
   Callable f_;
   double const* x_;
   double const* weights_;
+  int n_;
 
 };
 
@@ -383,17 +1210,17 @@ class SumAccumulator :
 public:
 
   template <typename Callable>
-  SumAccumulator(Callable, double const* x, int) : Base(x) {
+  SumAccumulator(Callable, double const* x, int n) : Base(x, n) {
     clear();
   }
 
-  // One add and one subtract per observation entering or leaving, against a
-  // from-scratch pass the compiler vectorizes well now that it runs over a
-  // plain pointer. Each step slides the window 'by' observations, so the
-  // crossover scales with 'by' -- and a 'by' past the crossover includes
-  // every 'by' wide enough to leave gaps, where there is nothing to carry
-  // forward at all.
-  static bool worthwhile(int n, int by, int) { return n >= 56LL * by; }
+  // one add and one subtract per observation entering or leaving, against a
+  // strip that under na.rm masks each observation, and for a mean counts it
+  static bool worthwhile(int n, int by, int) {
+    int contiguous = NA_RM ? (IS_MEAN ? 52 : 64) : 128;
+    int strided = NA_RM ? (IS_MEAN ? 28 : 36) : 64;
+    return incrementalWins(n, by, contiguous, strided);
+  }
 
   bool degraded() const { return total_.degraded(); }
 
@@ -469,13 +1296,14 @@ class VarAccumulator :
 public:
 
   template <typename Callable>
-  VarAccumulator(Callable, double const* x, int) : Base(x) {
+  VarAccumulator(Callable, double const* x, int n) : Base(x, n) {
     clear();
   }
 
-  // two running sums against two passes over the window, so this pays off
-  // sooner than a plain total does; as above, the crossover scales with 'by'
-  static bool worthwhile(int n, int by, int) { return n >= 16LL * by; }
+  // two running sums against two passes over the window
+  static bool worthwhile(int n, int by, int) {
+    return incrementalWins(n, by, 28, 10);
+  }
 
   bool degraded() const {
 
@@ -591,91 +1419,138 @@ private:
 
 };
 
-// Monotonic deque of candidate indices behind min() and max(): the front is
-// always the extremum of the current window, and an index is dropped as soon
-// as a later observation beats it. A window of n observations never holds an
-// index twice, so the deque lives in a ring over a buffer sized once at
-// construction -- no allocation, and no chunked indirection, on the hot path.
-// Ties are broken the way the from-scratch loops broke them, so that the
-// sign of a zero carries through unchanged.
+// Block scans behind min() and max() (van Herk / Gil-Werman). Cut the data
+// into blocks of n: a window of n then spans the tail of one block and the
+// head of the next, so its extremum is the extremum of just two values -- a
+// suffix extremum of the first block and a prefix extremum of the second. One
+// pass each way over every block computes them all: three comparisons per
+// observation whatever the window size, no window state to carry, and no
+// branch that depends on the data.
+//
+// Ties are broken as the from-scratch loops break them, so that the sign of a
+// zero carries through unchanged: min keeps the earlier of two equal values,
+// max the later. The pass that walks against the data's order asks strictly
+// where the pass that walks with it does not, and where the two halves meet
+// the same side wins. A NaN loses every comparison and so drops out on its
+// own; without na.rm, each pass also carries whether it has met one.
 template <bool NA_RM, bool IS_MIN>
-class ExtremumAccumulator :
-  public WindowAccumulator< ExtremumAccumulator<NA_RM, IS_MIN> > {
-
-  typedef WindowAccumulator< ExtremumAccumulator<NA_RM, IS_MIN> > Base;
+class ExtremumAccumulator {
 
 public:
 
   template <typename Callable>
-  ExtremumAccumulator(Callable, double const* x, int n) : Base(x) {
-    candidates_.resize(n > 0 ? n : 1);
-    clear();
+  ExtremumAccumulator(Callable, double const* x, int n) : x_(x), n_(n) {
+    suffix_.resize(n > 0 ? n : 1);
+    suffix_na_.resize(n > 0 ? n : 1);
   }
 
-  // maintaining the deque costs more than a stretch of comparisons the
-  // compiler can turn into branchless minimums; each step slides the window
-  // 'by' observations, so the crossover scales with 'by' as above
-  static bool worthwhile(int n, int by, int) { return n >= 32LL * by; }
-
-  // comparisons are exact, so there is nothing to lose
-  bool degraded() const { return false; }
-  bool urgent() const { return false; }
-
-  void prepare(int, int) {}
-
-  void clear() {
-    head_ = 0;
-    count_ = 0;
-    n_na_ = 0;
+  // three comparisons per observation of the strip's span, against a strip
+  // that pays n comparisons per window -- and, without na.rm, counts too
+  static bool worthwhile(int n, int by, int) {
+    return incrementalWins(n, by, NA_RM ? 12 : 8, NA_RM ? 3 : 1);
   }
 
-  void add(int i) {
-    double value = this->x_[i];
-    if (is_nan(value)) { ++n_na_; return; }
-    while (count_ && beats(value, this->x_[back()]))
-      --count_;
-    candidates_[wrap(head_ + count_)] = i;
-    ++count_;
+  // a window clipped at the data's edge is read on its own
+  double compute(int start, int end) {
+    return Reduction< ExtremumKernel<NA_RM, IS_MIN> >()(
+      x_, start, end - start + 1);
   }
 
-  void remove(int i) {
-    if (is_nan(this->x_[i])) { --n_na_; return; }
-    if (count_ && candidates_[head_] == i) {
-      head_ = wrap(head_ + 1);
-      --count_;
+  void computeStrip(int start, int by, int count, double* out, int stride) {
+
+    double const* x = x_ + start;
+    int n = n_;
+    int span = (count - 1) * by + n;
+    double* suffix = &suffix_[0];
+    char* suffix_na = &suffix_na_[0];
+
+    int j = 0;
+    for (int block = 0; j < count; block += n) {
+
+      // the block's suffix extrema, walking back: each is the extremum from
+      // its position to the block's end. The last block may be cut short by
+      // the data, but no window starts in one that is.
+      int block_end = block + n < span ? block + n : span;
+      double running = identity();
+      bool na = false;
+      for (int i = block_end - 1; i >= block; --i) {
+        double value = x[i];
+        running = backward(value, running);
+        suffix[i - block] = running;
+        if (!NA_RM) {
+          if (is_nan(value))
+            na = true;
+          suffix_na[i - block] = na;
+        }
+      }
+
+      // The windows starting in this block. The first may be the block
+      // itself; the rest reach into the next block, over which a prefix
+      // extremum walks forward as far as each window needs.
+      double prefix = identity();
+      bool prefix_na = false;
+      int next = block + n;
+      for (; j < count; ++j) {
+
+        int first = j * by;
+        if (first >= block + n)
+          break;
+
+        double result;
+        bool result_na;
+        if (first == block) {
+          result = suffix[0];
+          result_na = !NA_RM && suffix_na[0];
+        } else {
+          int last = first + n - 1;
+          for (; next <= last; ++next) {
+            double value = x[next];
+            prefix = forward(value, prefix);
+            if (!NA_RM && is_nan(value))
+              prefix_na = true;
+          }
+          result = meet(suffix[first - block], prefix);
+          result_na = !NA_RM && (suffix_na[first - block] || prefix_na);
+        }
+
+        out[j * stride] = result_na ? NA_REAL : result;
+      }
     }
-  }
 
-  double value() const {
-    if (!NA_RM && n_na_)
-      return NA_REAL;
-    // an empty window keeps the identity the from-scratch loops started from
-    if (count_ == 0)
-      return IS_MIN ? R_PosInf : R_NegInf;
-    return this->x_[candidates_[head_]];
   }
 
 private:
 
-  // min() kept the earlier of two equal values, max() the later
-  static bool beats(double candidate, double incumbent) {
-    return IS_MIN ? candidate < incumbent : candidate >= incumbent;
+  // an empty window keeps the identity the from-scratch loops started from
+  static double identity() {
+    return IS_MIN ? R_PosInf : R_NegInf;
   }
 
-  // positions reach at most one lap past the buffer, so one subtraction wraps
-  size_t wrap(size_t position) const {
-    size_t size = candidates_.size();
-    return position >= size ? position - size : position;
+  // walking back through a block, the incumbent is the later observation
+  static double backward(double value, double incumbent) {
+    if (IS_MIN)
+      return value <= incumbent ? value : incumbent;
+    return value > incumbent ? value : incumbent;
   }
 
-  int back() const {
-    return candidates_[wrap(head_ + count_ - 1)];
+  // walking forward, the incumbent is the earlier
+  static double forward(double value, double incumbent) {
+    if (IS_MIN)
+      return value < incumbent ? value : incumbent;
+    return value >= incumbent ? value : incumbent;
   }
 
-  std::vector<int> candidates_;
-  size_t head_;
-  size_t count_;
-  int n_na_;
+  // the suffix comes from the earlier block, the prefix from the later
+  static double meet(double suffix, double prefix) {
+    if (IS_MIN)
+      return prefix < suffix ? prefix : suffix;
+    return prefix >= suffix ? prefix : suffix;
+  }
+
+  double const* x_;
+  int n_;
+  std::vector<double> suffix_;
+  std::vector<char> suffix_na_;
 
 };
 
@@ -749,7 +1624,7 @@ public:
 
   template <typename Callable>
   MedianAccumulator(Callable, double const* x, int n)
-    : Base(x), lower_order_(x), upper_order_(x) {
+    : Base(x, n), lower_order_(x), upper_order_(x) {
 
     // the memmove's bandwidth beats the heaps' pointer-chasing up to windows
     // of about two hundred observations (measured); past that the heaps win
@@ -998,7 +1873,7 @@ class ProdAccumulator :
 public:
 
   template <typename Callable>
-  ProdAccumulator(Callable, double const* x, int n) : Base(x) {
+  ProdAccumulator(Callable, double const* x, int n) : Base(x, n) {
     if (n > 0) {
       back_.reserve(n);
       suffix_.reserve(n);
@@ -1006,10 +1881,11 @@ public:
     clear();
   }
 
-  // one multiply entering and an amortized one leaving, against a
-  // from-scratch pass the compiler vectorizes well; as elsewhere, each step
-  // slides the window 'by' observations, so the crossover scales with 'by'
-  static bool worthwhile(int n, int by, int) { return n >= 24LL * by; }
+  // one multiply entering and an amortized one leaving, against a strip
+  // that multiplies its windows abreast
+  static bool worthwhile(int n, int by, int) {
+    return incrementalWins(n, by, NA_RM ? 52 : 96, NA_RM ? 32 : 36);
+  }
 
   // products are never differenced, so there is no cancellation to guard;
   // whatever overflows or dies away is remade whole by the next flip
@@ -1072,774 +1948,6 @@ private:
   double back_product_;
   int n_na_;
   int n_nan_;
-
-};
-
-// ---------------------------------------------------------------------------
-// Windowing functions
-//
-// These compute a window from scratch. They still carry the weighted forms,
-// which have no incremental equivalent -- a weight belongs to a position
-// within the window, so sliding the window re-pairs every weight with a
-// different observation.
-// ---------------------------------------------------------------------------
-
-template <bool NA_RM>
-struct mean_f;
-
-template <>
-struct mean_f<true> {
-  inline double operator()(double const* x, int offset, int n) {
-    double result = 0.0;
-    int num = 0;
-    for (int i = 0; i < n; ++i) {
-      double value = x[offset + i];
-      bool ok = !is_nan(value);
-      // A select rather than a branch, so the loop is straight-line code.
-      // Masked-out values add -0.0, the one addend that leaves every total
-      // alone -- adding +0.0 would flip an all-negative-zero total's sign.
-      result += ok ? value : -0.0;
-      num += ok;
-    }
-    return result / num;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    // NOTE: the weights need to be re-normalized after dropping NAs, so we
-    // divide by the sum of the weights actually used rather than by a count
-    double result = 0.0;
-    double weights_sum = 0.0;
-    for (int i = 0; i < n; ++i) {
-      double value = x[offset + i];
-      bool ok = !is_nan(value);
-      // as above, -0.0 so that a masked-out addend changes no total
-      result += ok ? value * weights[i] : -0.0;
-      weights_sum += ok ? weights[i] : -0.0;
-    }
-    return result / weights_sum;
-  }
-};
-
-template <>
-struct mean_f<false> {
-  inline double operator()(double const* x, int offset, int n) {
-    double result = 0.0;
-    for (int i = 0; i < n; ++i) {
-      result += x[offset + i];
-    }
-    return result / n;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    double result = 0.0;
-    for (int i = 0; i < n; ++i) {
-      result += x[offset + i] * weights[i];
-    }
-    return result / n;
-  }
-};
-
-template <bool NA_RM>
-struct sum_f;
-
-template <>
-struct sum_f<false> {
-
-  inline double operator()(double const* x, int offset, int n) {
-    double result = 0.0;
-    for (int i = 0; i < n; ++i) {
-      result += x[offset + i];
-    }
-    return result;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    double result = 0.0;
-    for (int i = 0; i < n; ++i) {
-      result += x[offset + i] * weights[i];
-    }
-    return result;
-  }
-
-};
-
-template <>
-struct sum_f<true> {
-
-  inline double operator()(double const* x, int offset, int n) {
-    double result = 0.0;
-    for (int i = 0; i < n; ++i) {
-      double value = x[offset + i];
-      // as for the mean: a select keeps the loop straight-line, and -0.0 is
-      // the addend that leaves every total alone
-      result += !is_nan(value) ? value : -0.0;
-    }
-    return result;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    double result = 0.0;
-    for (int i = 0; i < n; ++i) {
-      double value = x[offset + i];
-      result += !is_nan(value) ? value * weights[i] : -0.0;
-    }
-    return result;
-  }
-
-};
-
-template <bool NA_RM>
-struct min_f;
-
-template <>
-struct min_f<false> {
-
-  inline double operator()(double const* x,
-                           int offset,
-                           int n) {
-    double result = R_PosInf;
-    for (int i = 0; i < n; ++i) {
-      if (is_nan(x[offset + i])) {
-        return NA_REAL;
-      }
-      result = x[offset + i] < result ? x[offset + i] : result;
-    }
-    return result;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    double result = R_PosInf;
-    for (int i = 0; i < n; ++i) {
-      if (is_nan(x[offset + i])) {
-        return NA_REAL;
-      }
-#define VALUE (x[offset + i] * weights[i])
-      result = VALUE < result ? VALUE : result;
-#undef VALUE
-    }
-    return result;
-  }
-
-};
-
-template <>
-struct min_f<true> {
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    double result = R_PosInf;
-    for (int i = 0; i < n; ++i) {
-#define VALUE (x[offset + i] * weights[i])
-      result = VALUE < result ? VALUE : result;
-#undef VALUE
-    }
-    return result;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           int n) {
-    double result = R_PosInf;
-    for (int i = 0; i < n; ++i) {
-      result = x[offset + i] < result ? x[offset + i] : result;
-    }
-    return result;
-  }
-};
-
-template <bool NA_RM>
-struct max_f;
-
-template <>
-struct max_f<false> {
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    double result = R_NegInf;
-    for (int i = 0; i < n; ++i) {
-      if (is_nan(x[offset + i])) {
-        return NA_REAL;
-      }
-#define VALUE (x[offset + i] * weights[i])
-      result = VALUE < result ? result : VALUE;
-#undef VALUE
-    }
-    return result;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           int n) {
-    double result = R_NegInf;
-    for (int i = 0; i < n; ++i) {
-      if (is_nan(x[offset + i])) {
-        return NA_REAL;
-      }
-      result = x[offset + i] < result ? result : x[offset + i];
-    }
-    return result;
-  }
-};
-
-template <>
-struct max_f<true> {
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    double result = R_NegInf;
-    // '>=' rather than the inverted '<', so that a NaN loses the comparison
-    // and skips itself while a tie still takes the later value -- max has
-    // always kept the later of two equal values, signed zeros included
-    for (int i = 0; i < n; ++i) {
-#define VALUE (x[offset + i] * weights[i])
-      result = VALUE >= result ? VALUE : result;
-#undef VALUE
-    }
-    return result;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           int n) {
-    double result = R_NegInf;
-    for (int i = 0; i < n; ++i) {
-      double value = x[offset + i];
-      result = value >= result ? value : result;
-    }
-    return result;
-  }
-};
-
-template <bool NA_RM>
-struct prod_f;
-
-template <>
-struct prod_f<true> {
-
-  inline double operator()(double const* x, int offset, int n) {
-    double result = 1.0;
-    for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result *= x[offset + i];
-      }
-    }
-    return result;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    double result = 1.0;
-    for (int i = 0; i < n; ++i) {
-      if (!is_nan(x[offset + i])) {
-        result *= x[offset + i] * weights[i];
-      }
-    }
-    return result;
-  }
-};
-
-template <>
-struct prod_f<false> {
-
-  inline double operator()(double const* x, int offset, int n) {
-    double result = 1.0;
-    for (int i = 0; i < n; ++i) {
-      result *= x[offset + i];
-    }
-    return result;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    double result = 1.0;
-    for (int i = 0; i < n; ++i) {
-      result *= x[offset + i] * weights[i];
-    }
-    return result;
-  }
-};
-
-// The sorted form of the weighted median: order the window, then walk the
-// cumulative weight up to the crossing. Kept as the fallback for weights the
-// selection below cannot order -- a negative, NaN, or infinite weight makes
-// the cumulative weight non-monotonic, or not a number, and this scan's
-// crossing is then the defined answer.
-inline double weighted_median_scan(
-    std::vector< std::pair<double, double> >& scratch) {
-
-  std::sort(scratch.begin(), scratch.end());
-
-  double weights_sum = 0.0;
-  for (size_t i = 0; i < scratch.size(); ++i)
-    weights_sum += scratch[i].second;
-
-  // guard against zero, negative, or non-finite weight sums, which would
-  // otherwise let the search below run past the end of the window
-  if (!(weights_sum > 0))
-    return NA_REAL;
-
-  size_t k = 0;
-  double remaining = weights_sum;
-  for (; k + 1 < scratch.size(); ++k) {
-    remaining -= scratch[k].second;
-    if (!(remaining > weights_sum / 2))
-      break;
-  }
-
-  return scratch[k].first;
-
-}
-
-// Compute a weighted median, ignoring any NAs in the window: the smallest
-// value whose cumulative weight, taken in value order, reaches half the total.
-// The weights are tied to their associated values first, since a weight
-// applies to the value at its own position rather than to the value that ends
-// up ranked there. 'scratch' and 'spare' belong to the caller, so that a pass
-// over many windows reuses two buffers rather than allocating for each window.
-//
-// Rather than sorting the window to walk its cumulative weight, this
-// partitions around a pivot and descends into the part holding the crossing:
-// expected linear time in the window size, where the sort pays an extra log
-// factor. Partitioning writes into the spare buffer rather than swapping in
-// place -- each pair is read once and written at most once, and the pivot's
-// run, which is only ever reported and never descended into, is not moved at
-// all.
-inline double weighted_median(double const* x,
-                              int offset,
-                              double const* weights,
-                              int n,
-                              std::vector< std::pair<double, double> >& scratch,
-                              std::vector< std::pair<double, double> >& spare) {
-
-  scratch.clear();
-  bool orderly = true;
-  double weights_sum = 0.0;
-  for (int i = 0; i < n; ++i) {
-    double value = x[offset + i];
-    if (is_nan(value))
-      continue;
-    double weight = weights[i];
-    if (!(weight >= 0.0) || !is_finite(weight))
-      orderly = false;
-    weights_sum += weight;
-    scratch.push_back(std::make_pair(value, weight));
-  }
-
-  if (scratch.empty())
-    return NA_REAL;
-
-  // the descent below leans on a cumulative weight that only ever grows, and
-  // on comparisons that mean what they say; a weight set (or total) that
-  // cannot promise that takes the scan
-  if (!orderly || !is_finite(weights_sum))
-    return weighted_median_scan(scratch);
-
-  // guard against an all-zero weight total, which has no crossing to find
-  if (!(weights_sum > 0))
-    return NA_REAL;
-
-  double target = weights_sum / 2;
-
-  if (spare.size() < scratch.size())
-    spare.resize(scratch.size());
-
-  std::pair<double, double>* from = &scratch[0];
-  std::pair<double, double>* into = &spare[0];
-  size_t size = scratch.size();
-  double below = 0.0; // total weight of the values ranked before 'from'
-
-  while (size > 1) {
-
-    // median-of-three pivot: windows of already-ordered data are common, and
-    // an end-of-range pivot would descend one element at a time through them
-    double a = from[0].first;
-    double b = from[size / 2].first;
-    double c = from[size - 1].first;
-    double pivot = a < b
-      ? (b < c ? b : (a < c ? c : a))
-      : (a < c ? a : (b < c ? c : b));
-
-    // Split off the values below and above the pivot at the two ends of the
-    // other buffer, keeping the pivot's run whole so that repeated values
-    // cannot stall the descent. Which side a value lands on is a coin flip no
-    // branch predictor can learn, so the split is branchless: every element
-    // is written to both frontiers, and only the matching side's counter --
-    // and weight -- moves. A slot past its counter holds a stale copy that
-    // the next committed write overwrites, and the span left between the two
-    // frontiers is never read.
-    size_t n_lt = 0;
-    size_t n_gt = 0;
-    double weight_lt = 0.0;
-    double weight_eq = 0.0;
-
-    for (size_t i = 0; i < size; ++i) {
-      double value = from[i].first;
-      double weight = from[i].second;
-      bool lt = value < pivot;
-      bool gt = pivot < value;
-      into[n_lt] = from[i];
-      into[size - 1 - n_gt] = from[i];
-      n_lt += lt;
-      n_gt += gt;
-      weight_lt += lt ? weight : 0.0;
-      weight_eq += (lt | gt) ? 0.0 : weight;
-    }
-
-    // Descend into whichever part the cumulative weight crosses half within,
-    // the buffer just read becoming the next level's writing room. The values
-    // below the pivot never hold the crossing when they are empty: reusing
-    // 'after_eq' as the next 'below' keeps the comparison that sent the
-    // descent rightwards bit-identical to the one guarding the left.
-    double after_lt = below + weight_lt;
-    double after_eq = after_lt + weight_eq;
-
-    std::pair<double, double>* room = from;
-    if (!(weights_sum - after_lt > target)) {
-      from = into;
-      size = n_lt;
-    } else if (n_gt && weights_sum - after_eq > target) {
-      below = after_eq;
-      from = into + (size - n_gt);
-      size = n_gt;
-    } else {
-      return pivot;
-    }
-    into = room;
-
-  }
-
-  return from[0].first;
-
-}
-
-// Select the median out of 'scratch', which this reorders. std::nth_element
-// places the middle value in linear time, where a partial sort of the lower
-// half of the window would cost an extra log factor. The lower form reports
-// the lower of an even window's two middle values rather than their average,
-// which is the value a weighted median with uniform weights selects.
-inline double select_median(std::vector<double>& scratch, bool lower) {
-
-  size_t n = scratch.size();
-  if (n == 0)
-    return NA_REAL;
-
-  if (lower) {
-    std::nth_element(
-      scratch.begin(), scratch.begin() + (n - 1) / 2, scratch.end());
-    return scratch[(n - 1) / 2];
-  }
-
-  std::nth_element(
-    scratch.begin(), scratch.begin() + n / 2, scratch.end());
-  double upper = scratch[n / 2];
-
-  if (n % 2 == 0) {
-    // everything below the midpoint is already partitioned below it, so the
-    // other middle value is simply the largest of that part
-    double lower_middle =
-      *std::max_element(scratch.begin(), scratch.begin() + n / 2);
-    return (lower_middle + upper) / 2;
-  }
-
-  return upper;
-
-}
-
-// The weighted forms select an observation whatever LOWER says: a weighted
-// median never interpolates, so it is its own lower form.
-template <bool NA_RM, bool LOWER = false>
-struct median_f;
-
-template <bool LOWER>
-struct median_f<false, LOWER> {
-
-  inline double operator()(double const* x, int offset, int n) {
-
-    for (int i = offset; i < offset + n; i++)
-      if (is_nan(x[i]))
-        return NA_REAL;
-
-    scratch_.assign(x + offset, x + offset + n);
-    return select_median(scratch_, LOWER);
-
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-
-    for (int i = offset; i < offset + n; i++)
-      if (is_nan(x[i]))
-        return NA_REAL;
-
-    return weighted_median(x, offset, weights, n,
-                           weighted_scratch_, weighted_spare_);
-  }
-
-private:
-
-  std::vector<double> scratch_;
-  std::vector< std::pair<double, double> > weighted_scratch_;
-  std::vector< std::pair<double, double> > weighted_spare_;
-
-};
-
-template <bool LOWER>
-struct median_f<true, LOWER> {
-
-  inline double operator()(double const* x, int offset, int n) {
-
-    scratch_.clear();
-    scratch_.reserve(n);
-    for (int i = offset; i < offset + n; i++)
-      if (!is_nan(x[i]))
-        scratch_.push_back(x[i]);
-
-    return select_median(scratch_, LOWER);
-
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-
-    return weighted_median(x, offset, weights, n,
-                           weighted_scratch_, weighted_spare_);
-  }
-
-private:
-
-  std::vector<double> scratch_;
-  std::vector< std::pair<double, double> > weighted_scratch_;
-  std::vector< std::pair<double, double> > weighted_spare_;
-
-};
-
-// Sample variance of a window, ignoring NAs. NA when fewer than two values
-// remain, matching var()'s behaviour for a vector of length 0 or 1. The first
-// pass also reports whether it saw an NA at all, so that the NA-intolerant
-// form below does not need a scan of its own.
-// With na.rm = FALSE, the first missing value settles the result: skip the
-// rest of the window and the second pass. The template leaves NA removal's
-// full two-pass calculation unchanged.
-template <bool NA_RM>
-inline double window_var(double const* x,
-                         int offset,
-                         int n,
-                         bool& has_na) {
-
-  double total = 0.0;
-  int count = 0;
-  has_na = false;
-
-  for (int i = 0; i < n; ++i) {
-    double value = x[offset + i];
-    if (is_nan(value)) {
-      has_na = true;
-      if (!NA_RM) return NA_REAL;
-    } else {
-      total += value;
-      ++count;
-    }
-  }
-
-  if (count < 2)
-    return NA_REAL;
-
-  double mean = total / count;
-
-  // Corrected two-pass: the deviations are measured from a mean that is itself
-  // rounded, and their total collects exactly the error that introduces --
-  // subtracting it below takes the rounding back out. Without it a window
-  // whose spread is small beside its mean loses most of its digits here.
-  double squares = 0.0;
-  double residual = 0.0;
-  for (int i = 0; i < n; ++i) {
-    double value = x[offset + i];
-    if (!is_nan(value)) {
-      double difference = value - mean;
-      squares += difference * difference;
-      residual += difference;
-    }
-  }
-
-  // the deviations squared past what a double can hold, so the variance is out
-  // of range too -- and the correction below would only turn it into a NaN
-  if (squares == R_PosInf)
-    return R_PosInf;
-
-  double result = squares - residual * residual / count;
-  if (result < 0.0) result = 0.0;
-
-  return result / (count - 1);
-
-}
-
-// Weighted sample variance, treating a weight as a repeat count (frequency
-// weights):
-//
-//   m  = sum(w * x) / sum(w)
-//   s2 = sum(w * (x - m)^2) / (sum(w) - 1)
-//
-// Since 'normalize' scales the weights to sum to n, equal weights reduce this
-// to window_var() above, so a uniform weight vector agrees with the unweighted
-// routines. NAs are dropped from the values and their own weights together.
-template <bool NA_RM>
-inline double weighted_var(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n,
-                           bool& has_na) {
-
-  double weights_sum = 0.0;
-  double weighted_total = 0.0;
-  int count = 0;
-  has_na = false;
-
-  for (int i = 0; i < n; ++i) {
-    double value = x[offset + i];
-    if (is_nan(value)) {
-      has_na = true;
-      if (!NA_RM) return NA_REAL;
-    } else {
-      weights_sum += weights[i];
-      weighted_total += weights[i] * value;
-      ++count;
-    }
-  }
-
-  // as above for fewer than two values; a denominator that is zero or negative
-  // (possible with 'normalize = FALSE', or after dropping NAs) has no
-  // meaningful answer either
-  if (count < 2 || !(weights_sum > 1))
-    return NA_REAL;
-
-  double mean = weighted_total / weights_sum;
-
-  // corrected two-pass, as above, with the weights carried through
-  double squares = 0.0;
-  double residual = 0.0;
-  for (int i = 0; i < n; ++i) {
-    double value = x[offset + i];
-    if (!is_nan(value)) {
-      double difference = value - mean;
-      squares += weights[i] * difference * difference;
-      residual += weights[i] * difference;
-    }
-  }
-
-  // the deviations squared past what a double can hold, so the variance is out
-  // of range too -- and the correction below would only turn it into a NaN
-  if (squares == R_PosInf)
-    return R_PosInf;
-
-  double result = squares - residual * residual / weights_sum;
-  if (result < 0.0) result = 0.0;
-
-  return result / (weights_sum - 1);
-
-}
-
-template <bool NA_RM>
-struct var_f;
-
-template <>
-struct var_f<false> {
-
-  inline double operator()(double const* x, int offset, int n) {
-    bool has_na;
-    double result = window_var<false>(x, offset, n, has_na);
-    return has_na ? NA_REAL : result;
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    bool has_na;
-    double result = weighted_var<false>(x, offset, weights, n, has_na);
-    return has_na ? NA_REAL : result;
-  }
-
-};
-
-template <>
-struct var_f<true> {
-
-  inline double operator()(double const* x, int offset, int n) {
-    bool has_na;
-    return window_var<true>(x, offset, n, has_na);
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    bool has_na;
-    return weighted_var<true>(x, offset, weights, n, has_na);
-  }
-
-};
-
-template <bool NA_RM>
-struct sd_f;
-
-template <>
-struct sd_f<false> {
-
-  inline double operator()(double const* x, int offset, int n) {
-    return window_sqrt(var_f<false>()(x, offset, n));
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    return window_sqrt(var_f<false>()(x, offset, weights, n));
-  }
-
-};
-
-template <>
-struct sd_f<true> {
-
-  inline double operator()(double const* x, int offset, int n) {
-    return window_sqrt(var_f<true>()(x, offset, n));
-  }
-
-  inline double operator()(double const* x,
-                           int offset,
-                           double const* weights,
-                           int n) {
-    return window_sqrt(var_f<true>()(x, offset, weights, n));
-  }
 
 };
 
@@ -1981,7 +2089,22 @@ inline int threadCount(int chunks, int budget) {
 // the matrix routine can hand over a column of its output directly.
 // ---------------------------------------------------------------------------
 
-// Walk the clipped windows, writing one value per point.
+// One window reported at 'i', clipped to the data.
+template <typename Accumulator>
+inline double roll_clipped(Accumulator& accumulator,
+                           int x_n,
+                           int i,
+                           int leftOffset,
+                           int rightOffset) {
+  int start = i - leftOffset;
+  int stop  = i + rightOffset;
+  if (start < 0) start = 0;
+  if (stop > x_n - 1) stop = x_n - 1;
+  return accumulator.compute(start, stop);
+}
+
+// Walk the clipped windows, writing one value per point. The windows clipped
+// at neither edge form one run, handed over a chunk at a time as strips.
 template <typename Accumulator>
 void roll_partial_windows(Accumulator const& prototype,
                           int x_n,
@@ -1996,6 +2119,15 @@ void roll_partial_windows(Accumulator const& prototype,
   int chunk = chunkSize(width);
   int chunks = ops ? (ops - 1) / chunk + 1 : 0;
 
+  // the windows reported at least 'leftOffset' from the start and
+  // 'rightOffset' from the end are whole: those from 'whole_from' up to
+  // 'whole_to'. A window wider than the data leaves none, bar the case of a
+  // single observation, whose window has the accumulator's (clipped) width.
+  int whole_from = (leftOffset + by - 1) / by;
+  int whole_to = x_n - 1 - rightOffset >= 0
+    ? (x_n - 1 - rightOffset) / by + 1
+    : 0;
+
 #ifdef _OPENMP
   int team = threadCount(chunks, threads);
 # pragma omp parallel for num_threads(team) if (team > 1)
@@ -2004,14 +2136,22 @@ void roll_partial_windows(Accumulator const& prototype,
     Accumulator accumulator(prototype);
     int begin = c * chunk;
     int end = ops - begin > chunk ? begin + chunk : ops;
-    for (int j = begin; j < end; ++j) {
-      int i = j * by;
-      int start = i - leftOffset;
-      int stop  = i + rightOffset;
-      if (start < 0) start = 0;
-      if (stop > x_n - 1) stop = x_n - 1;
-      output[i] = accumulator.compute(start, stop);
+
+    int j = begin;
+    for (; j < end && j < whole_from; ++j)
+      output[j * by] =
+        roll_clipped(accumulator, x_n, j * by, leftOffset, rightOffset);
+
+    if (j < end && j < whole_to) {
+      int to = end < whole_to ? end : whole_to;
+      accumulator.computeStrip(
+        j * by - leftOffset, by, to - j, output + j * by, by);
+      j = to;
     }
+
+    for (; j < end; ++j)
+      output[j * by] =
+        roll_clipped(accumulator, x_n, j * by, leftOffset, rightOffset);
   }
 
 }
@@ -2083,11 +2223,8 @@ int roll_fill_windows(Accumulator const& prototype,
     Accumulator accumulator(prototype);
     int begin = c * chunk;
     int end = ops - begin > chunk ? begin + chunk : ops;
-    for (int j = begin; j < end; ++j) {
-      int i = from + j * by;
-      int start = i - padLeftTimes;
-      output[i] = accumulator.compute(start, start + n - 1);
-    }
+    int i = from + begin * by;
+    accumulator.computeStrip(i - padLeftTimes, by, end - begin, output + i, by);
   }
 
   return from + ops * by;
@@ -2133,7 +2270,7 @@ void roll_vector_fill_into(Callable f,
   int to = padLeftTimes + ops_n;
   if (weights_n) {
     i = roll_fill_windows(
-      WeightedAccumulator<Callable>(f, x, weights),
+      WeightedAccumulator<Callable>(f, x, weights, n),
       output, n, by, i, to, padLeftTimes, threads);
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
@@ -2174,10 +2311,7 @@ void roll_nofill_windows(Accumulator const& prototype,
     Accumulator accumulator(prototype);
     int begin = c * chunk;
     int end = output_n - begin > chunk ? begin + chunk : output_n;
-    for (int i = begin; i < end; ++i) {
-      int index = i * by;
-      output[i] = accumulator.compute(index, index + n - 1);
-    }
+    accumulator.computeStrip(begin * by, by, end - begin, output + begin, 1);
   }
 }
 
@@ -2200,8 +2334,8 @@ void roll_vector_nofill_into(Callable f,
 
   if (weights_n) {
     roll_nofill_windows(
-      WeightedAccumulator<Callable>(f, x, weights), output, n, by, output_n,
-      threads);
+      WeightedAccumulator<Callable>(f, x, weights, n), output, n, by,
+      output_n, threads);
   } else {
     typedef typename accumulator_for<Callable>::type Incremental;
     if (Incremental::worthwhile(n, by, output_n))
@@ -2662,3 +2796,4 @@ extern "C" SEXP roll_var_impl(SEXP x,
   }
 }
 // End auto-generated exports (internal/make-exports.R)
+

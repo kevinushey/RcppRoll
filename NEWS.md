@@ -2,6 +2,22 @@
 
 ## Performance improvements
 
+- The from-scratch window loops now run several windows abreast, so that the
+  compiler vectorizes across them rather than waiting on one window's chain
+  of additions. Each window still meets its observations in the same order,
+  so results are unchanged, up to fused multiply-add rounding on hardware
+  that has it. Every call below the incremental crossovers benefits -- sums,
+  means and products over small windows run 1.5-4x faster -- and so does
+  every weighted call, which has no incremental form: weighted sums and
+  means with a 200-element window run 4.7x faster, weighted products 6.8x.
+  The crossovers have been re-measured to match.
+
+- `roll_min()` and `roll_max()` now compute their windows with van Herk /
+  Gil-Werman block scans: three comparisons per observation whatever the
+  window size, in place of the monotonic deque. Windows of 20 or more
+  observations run 4-8x faster. Results are identical, ties and the sign of
+  a zero included.
+
 - `roll_var()` and `roll_sd()` now stop direct window calculations at the
   first missing value when `na.rm = FALSE`, avoiding the remaining mean and
   variance passes. Calls with `na.rm = TRUE` keep their existing calculation.
@@ -11,6 +27,12 @@
   windows per column, avoiding the cost of building incremental median state
   for too few outputs to benefit from it. (#59)
 
+## Bug fixes
+
+- Without `na.rm`, a from-scratch sum, mean or product over a window holding
+  both an `NA` and a `NaN` now reports `NA`, as the incremental routines
+  already did. Previously whichever payload the hardware carried through the
+  arithmetic won, so the answer could depend on the window size.
 
 # RcppRoll 0.4.0
 
