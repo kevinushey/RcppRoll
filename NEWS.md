@@ -29,6 +29,33 @@
 
 ## Bug fixes
 
+- Rolling products use forward multiplication for windows at risk of overflow
+  or underflow, including zeros and infinities. Ordinary windows retain the
+  incremental two-stack path; regrouping can change rounding in the low bits.
+  Previously, regrouping could return `NaN` where a fresh product returned zero.
+
+- Large finite values no longer overflow the intermediate sum used for means,
+  median midpoints, or centering variance and standard deviation calculations.
+  Normalizing finite weights now tolerates a huge common scale, and frequency
+  weights avoid unnecessary overflow or underflow in variance contributions.
+  Squared deviations can still overflow, including when the final standard
+  deviation would be representable.
+
+- `n`, `by`, logical controls, weight normalization, and frequency weights for
+  variance are now validated before dispatch. This also prevents integer
+  overflow for very large valid `by` values.
+
+- Weighted minima and maxima now apply missing-value handling to the weighted
+  product and preserve the distinction between `NA` and `NaN`. Unweighted
+  extrema preserve that distinction as well.
+
+- Custom `fill` values are now recycled to the documented three regions and
+  apply when the input is shorter than the window. `na_locf()` now preserves
+  valid factor storage while carrying factor levels forward.
+
+- With unnormalized weights, `na.rm = TRUE` no longer changes a complete
+  weighted mean's denominator.
+
 - Without `na.rm`, a from-scratch sum, mean or product over a window holding
   both an `NA` and a `NaN` now reports `NA`, as the incremental routines
   already did. Previously whichever payload the hardware carried through the
