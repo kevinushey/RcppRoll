@@ -3,6 +3,8 @@
 #include <Rinternals.h>
 
 #include <algorithm>
+#include <cfloat>
+#include <climits>
 #include <cmath>
 #include <cstring>
 #include <utility>
@@ -21,30 +23,21 @@ class Fill {
 
 public:
 
-Fill (SEXP vector) {
-  switch (Rf_length(vector)) {
-    case 0: {
+  Fill (SEXP vector) {
+    int n = Rf_length(vector);
+    if (n == 0) {
       filled_ = false;
-      break;
+      return;
     }
-    case 1: {
-      left_ = middle_ = right_ = REAL(vector)[0];
-      filled_ = true;
-      break;
-    }
-    case 3: {
-      double const* data = REAL(vector);
-      left_ = data[0];
-      middle_ = data[1];
-      right_ = data[2];
-      filled_ = true;
-      break;
-    }
-    default: {
-      Rf_error("'fill' should be a vector of size 0, 1, or 3");
-    }
+
+    // Match rep_len(fill, 3): shorter inputs recycle, and longer ones are
+    // truncated to the three regions the window layout can use.
+    double const* data = REAL(vector);
+    left_ = data[0];
+    middle_ = data[1 % n];
+    right_ = data[2 % n];
+    filled_ = true;
   }
-}
 
 Fill (Fill const& other):
   left_(other.left_), middle_(other.middle_), right_(other.right_),
@@ -117,24 +110,93 @@ inline int rollOutputSize(int x_n, int n, int by, Fill const& fill, bool partial
   return (x_n - n) / by + 1;
 }
 
+// Neumaier's rounding correction for an already-computed sum. Callers decide
+// how to handle overflow before using the correction.
+inline void addSummationCorrection(double total, double value, double updated,
+                                   double& compensation) {
+  if (fabs(total) >= fabs(value))
+    compensation += (total - updated) + value;
+  else
+    compensation += (value - updated) + total;
+}
+
+// Keep an underflowing intermediate ratio out of the normalization. The
+// final multiplication by n can make that weight representable again.
+inline double normalizedWeight(double value, double scale, double total, int n) {
+  double ratio = value / scale;
+  double unit = ratio / total;
+  if (value != 0.0 && (fabs(ratio) < DBL_MIN || fabs(unit) < DBL_MIN)) {
+    int value_exp, scale_exp, total_exp;
+    double value_part = std::frexp(value, &value_exp);
+    double scale_part = std::frexp(scale, &scale_exp);
+    double total_part = std::frexp(total, &total_exp);
+    return std::ldexp((value_part / scale_part) / total_part * n,
+                      value_exp - scale_exp - total_exp);
+  }
+  return unit * n;
+}
+
 // 'normalize' rescales the weights so that they sum to 'n'. Done once here
 // rather than once per column of a matrix, and without touching the caller's
-// vector.
+// vector. An empty result lets dispatch use the original weights directly.
 inline std::vector<double> normalizeWeights(double const* weights,
                                             int weights_n,
                                             int n,
                                             bool normalize) {
 
-  std::vector<double> scaled(weights, weights + weights_n);
-  if (!normalize || !weights_n)
-    return scaled;
+  if (!weights_n || !normalize)
+    return std::vector<double>();
+
+  // Scale before summing so multiplying every finite weight by a common
+  // factor cannot overflow the total and turn all normalized weights to zero.
+  // All validation precedes the vector allocation: Rf_error() longjmps past
+  // C++ destructors.
+  double scale = 0.0;
+  for (int i = 0; i < weights_n; ++i) {
+    if (!std::isfinite(weights[i]))
+      Rf_error("'weights' should be finite when 'normalize = TRUE'");
+    double magnitude = fabs(weights[i]);
+    if (magnitude > scale)
+      scale = magnitude;
+  }
+
+  if (scale == 0.0)
+    Rf_error("'weights' should have a non-zero sum when 'normalize = TRUE'");
 
   double total = 0.0;
-  for (int i = 0; i < weights_n; ++i)
-    total += weights[i];
+  double compensation = 0.0;
+  for (int i = 0; i < weights_n; ++i) {
+    double value = weights[i] / scale;
+    double updated = total + value;
+    addSummationCorrection(total, value, updated, compensation);
+    total = updated;
+  }
+  total += compensation;
 
+  if (total == 0.0 || !std::isfinite(total))
+    Rf_error("'weights' should have a finite, non-zero sum when 'normalize = TRUE'");
+
+  bool underflow = false;
+  for (int i = 0; i < weights_n; ++i) {
+    double ratio = weights[i] / scale;
+    double unit = ratio / total;
+    double value = unit * n;
+    underflow |= weights[i] != 0.0 &&
+      (fabs(ratio) < DBL_MIN || fabs(unit) < DBL_MIN);
+    if (!std::isfinite(value))
+      Rf_error("normalized 'weights' should be finite");
+  }
+
+  std::vector<double> scaled(weights_n);
   for (int i = 0; i < weights_n; ++i)
-    scaled[i] = weights[i] / total * n;
+    scaled[i] = (weights[i] / scale) / total * n;
+
+  // Keep exponent recovery outside the ordinary normalization loops so the
+  // compiler can still vectorize their divisions and stores. These tiny
+  // intermediate ratios cannot overflow after recovery for int-sized n.
+  if (underflow)
+    for (int i = 0; i < weights_n; ++i)
+      scaled[i] = normalizedWeight(weights[i], scale, total, n);
 
   return scaled;
 }
@@ -153,6 +215,56 @@ inline bool is_finite(double value) {
 // sqrt() would turn NA_REAL into a plain NaN, so pass non-values through
 inline double window_sqrt(double value) {
   return is_nan(value) ? value : sqrt(value);
+}
+
+// Average two ordered middle values without overflowing their sum. For
+// opposite signs the sum is safe; for like signs the difference is safe.
+inline double midpoint(double lower, double upper) {
+  if (is_finite(lower) && is_finite(upper) &&
+      std::signbit(lower) == std::signbit(upper))
+    return lower + (upper - lower) / 2.0;
+  return (lower + upper) / 2.0;
+}
+
+// Exceptional path for a mean of finite weighted products whose direct sum
+// overflowed or underflowed. Keep the products' common power of two outside
+// the sum: neither forming a product nor restoring its scale may precede
+// the final division.
+// Missing observations have already been validated and can only remain here
+// under na.rm.
+inline double scaled_weighted_mean(double const* x,
+                                   double const* weights,
+                                   int n,
+                                   double denominator) {
+  int scale = INT_MIN;
+  for (int i = 0; i < n; ++i) {
+    if (is_nan(x[i]) || x[i] == 0.0 || weights[i] == 0.0)
+      continue;
+    int value_exp, weight_exp;
+    std::frexp(x[i], &value_exp);
+    std::frexp(weights[i], &weight_exp);
+    scale = std::max(scale, value_exp + weight_exp);
+  }
+  if (scale == INT_MIN)
+    return 0.0 / denominator;
+
+  double total = 0.0;
+  double compensation = 0.0;
+  for (int i = 0; i < n; ++i) {
+    if (is_nan(x[i]) || x[i] == 0.0 || weights[i] == 0.0)
+      continue;
+    int value_exp, weight_exp;
+    double value = std::frexp(x[i], &value_exp);
+    double weight = std::frexp(weights[i], &weight_exp);
+    double term = std::ldexp(value * weight, value_exp + weight_exp - scale);
+    double updated = total + term;
+    addSummationCorrection(total, term, updated, compensation);
+    total = updated;
+  }
+  int denominator_exp;
+  double denominator_part = std::frexp(denominator, &denominator_exp);
+  return std::ldexp((total + compensation) / denominator_part,
+                    scale - denominator_exp);
 }
 
 // Whether every weight is the same, making the weighted call the unweighted
@@ -197,6 +309,8 @@ public:
   void add(double value) {
     double updated = total_ + value;
     if (is_finite(updated)) {
+      // Keep the correction local in this hot path: extracting it into the
+      // shared helper slowed the rolling sum/mean benchmarks with Clang.
       if (fabs(total_) >= fabs(value))
         compensation_ += (total_ - updated) + value;
       else
@@ -243,6 +357,35 @@ private:
 
 };
 
+// Sum relative to the largest observed magnitude so a mean can be formed
+// without overflowing its numerator. Callers retain their own rules for
+// filtering missing or non-finite observations and counting contributions.
+class ScaledSum {
+
+public:
+
+  ScaledSum() : total_(0.0), scale_(0.0) {}
+
+  void add(double value) {
+    double magnitude = fabs(value);
+    if (magnitude > scale_) {
+      total_ *= scale_ / magnitude;
+      scale_ = magnitude;
+    }
+    total_ += scale_ != 0.0 ? value / scale_ : value;
+  }
+
+  double mean(double count) const {
+    return (total_ / count) * scale_;
+  }
+
+private:
+
+  double total_;
+  double scale_;
+
+};
+
 // ---------------------------------------------------------------------------
 // Window kernels
 //
@@ -262,7 +405,8 @@ private:
 
 struct OnePass {
   static const int PASSES = 1;
-  template <typename Lanes> static void prepare(Lanes&, int) {}
+  template <typename Lanes>
+  static void prepare(Lanes&, int, double const*, int, double const*) {}
   template <typename Lanes> static void step2(Lanes&, double const*, int) {}
   template <typename Lanes> static void step2(Lanes&, double const*, int, double) {}
 };
@@ -274,9 +418,9 @@ struct OnePass {
 // accumulators do.
 inline double missing_kind(double const* window, int n, double const* weights) {
   for (int k = 0; k < n; ++k) {
-    if (ISNA(window[k]))
+    if (is_nan(window[k]) && ISNA(window[k]))
       return NA_REAL;
-    if (weights && ISNA(weights[k]))
+    if (weights && is_nan(weights[k]) && ISNA(weights[k]))
       return NA_REAL;
   }
   return R_NaN;
@@ -330,10 +474,21 @@ struct SumKernel : OnePass {
         bool ok = !is_nan(value);
         s.total[t] += ok ? value * weight : -0.0;
         s.weight_total[t] += ok ? weight : -0.0;
+        s.count[t] += ok;
       } else {
         s.total[t] += value * weight;
       }
     }
+  }
+
+  template <int T>
+  static bool underflowedMean(State<T> const& s, int t,
+                              double const* weights, bool normalize) {
+    // Dropping dominant weights can leave a tiny denominator. A rounded
+    // subnormal numerator then loses digits that division would restore.
+    return NA_RM && IS_MEAN && weights && normalize &&
+      fabs(s.total[t]) < DBL_MIN &&
+      s.weight_total[t] != 0.0 && fabs(s.weight_total[t]) < 1.0;
   }
 
   // without na.rm, 'normalize' has already made the weights sum to n
@@ -342,15 +497,93 @@ struct SumKernel : OnePass {
                        int t,
                        int n,
                        double const* window,
-                       double const* weights) {
+                       double const* weights,
+                       bool normalize) {
     double total = s.total[t];
-    if (!NA_RM && is_nan(total))
-      total = missing_kind(window, n, weights);
-    if (!IS_MEAN)
+    if (!IS_MEAN) {
+      if (!NA_RM && is_nan(total))
+        total = missing_kind(window, n, weights);
       return total;
-    if (!NA_RM)
-      return total / n;
-    return total / (weights ? s.weight_total[t] : (double) s.count[t]);
+    }
+
+    // Without normalization, a weighted mean remains the arithmetic mean of
+    // the weighted values. With it, weights surviving na.rm are normalized
+    // again by dividing by their own total.
+    double denominator = !NA_RM
+      ? (double) n
+      : (weights && normalize ? s.weight_total[t] : (double) s.count[t]);
+
+    // Preserve the identity of a genuine missing input before attempting the
+    // overflow fallback below. An arithmetic NaN made solely from finite
+    // inputs can still have a representable mean.
+    if (!NA_RM && is_nan(total)) {
+      bool missing = false;
+      for (int k = 0; k < n; ++k) {
+        if (is_nan(window[k]) || (weights && is_nan(weights[k]))) {
+          missing = true;
+          break;
+        }
+      }
+      if (missing)
+        return missing_kind(window, n, weights);
+    }
+
+    double result = total / denominator;
+    bool underflow = underflowedMean(s, t, weights, normalize);
+    if (!underflow && (is_finite(result) || is_finite(total)))
+      return result;
+
+    // Summing finite values can overflow even where their mean is in range.
+    // Re-sum values relative to their largest magnitude, dividing before
+    // scaling back, so the intermediate total stays representable.
+    double scale = 0.0;
+    for (int k = 0; k < n; ++k) {
+      double value = window[k];
+      if (NA_RM && is_nan(value))
+        continue;
+      if (!is_finite(value) || (weights && !is_finite(weights[k])))
+        return result;
+      double magnitude = fabs(value);
+      if (magnitude > scale)
+        scale = magnitude;
+    }
+
+    if (scale == 0.0 || !is_finite(denominator))
+      return result;
+
+    if (underflow || (weights && !normalize))
+      return scaled_weighted_mean(window, weights, n, denominator);
+
+    double scaled_total = 0.0;
+    double compensation = 0.0;
+    double lower = R_PosInf;
+    double upper = R_NegInf;
+    bool bounded = !weights || normalize;
+    for (int k = 0; k < n; ++k) {
+      double value = window[k];
+      if (NA_RM && is_nan(value))
+        continue;
+      double term = value / scale;
+      if (term < lower) lower = term;
+      if (term > upper) upper = term;
+      if (weights) {
+        bounded = bounded && weights[k] >= 0.0;
+        term *= weights[k];
+      }
+      double updated = scaled_total + term;
+      addSummationCorrection(scaled_total, term, updated, compensation);
+      scaled_total = updated;
+    }
+    scaled_total += compensation;
+
+    double scaled_result = scaled_total / denominator;
+    if (weights && normalize && lower == upper && denominator != 0.0) {
+      scaled_result = lower;
+    } else if (bounded && denominator > 0.0) {
+      if (scaled_result < lower) scaled_result = lower;
+      if (scaled_result > upper) scaled_result = upper;
+    }
+    return scaled_result * scale;
   }
 
 };
@@ -358,24 +591,24 @@ struct SumKernel : OnePass {
 // min() and max(). The selects are the ones the from-scratch loops always
 // used, so ties -- and with them the sign of a zero -- resolve as before: min
 // keeps the earlier of two equal values, max the later. A NaN loses every
-// comparison and so drops out on its own; without na.rm, a count of the values
-// that were not NaN says whether the window reports NA instead. The count
-// looks at the observation, not the weighted product: an infinite value
-// against a zero weight was never treated as missing.
-template <bool NA_RM, bool IS_MIN>
+// comparison and so drops out on its own. Without na.rm, each lane records
+// whether it saw a missing result; the rare finish path classifies NA versus
+// NaN. Weighted calls inspect the product, since 0 * Inf is also missing.
+template <bool NA_RM, bool IS_MIN, bool CHECK_MISSING = true,
+          bool ONLY_NA = false>
 struct ExtremumKernel : OnePass {
 
   template <int T>
   struct State {
     double value[T];
-    long long count[T];
+    long long missing[T];
   };
 
   template <int T>
   static void init(State<T>& s) {
     for (int t = 0; t < T; ++t) {
       s.value[t] = IS_MIN ? R_PosInf : R_NegInf;
-      s.count[t] = 0;
+      s.missing[t] = 0;
     }
   }
 
@@ -383,8 +616,8 @@ struct ExtremumKernel : OnePass {
   static void step(State<T>& s, double const* p, int stride) {
     for (int t = 0; t < T; ++t) {
       double value = p[t * stride];
-      if (!NA_RM)
-        s.count[t] += !is_nan(value);
+      if (!NA_RM && CHECK_MISSING)
+        s.missing[t] |= is_nan(value);
       s.value[t] = select(value, s.value[t]);
     }
   }
@@ -393,9 +626,10 @@ struct ExtremumKernel : OnePass {
   static void step(State<T>& s, double const* p, int stride, double weight) {
     for (int t = 0; t < T; ++t) {
       double value = p[t * stride];
-      if (!NA_RM)
-        s.count[t] += !is_nan(value);
-      s.value[t] = select(value * weight, s.value[t]);
+      double candidate = value * weight;
+      if (!NA_RM && CHECK_MISSING)
+        s.missing[t] |= is_nan(ONLY_NA ? value : candidate);
+      s.value[t] = select(candidate, s.value[t]);
     }
   }
 
@@ -403,10 +637,11 @@ struct ExtremumKernel : OnePass {
   static double finish(State<T> const& s,
                        int t,
                        int n,
-                       double const*,
-                       double const*) {
-    if (!NA_RM && s.count[t] != n)
-      return NA_REAL;
+                       double const* window,
+                       double const* weights,
+                       bool) {
+    if (!NA_RM && CHECK_MISSING && s.missing[t])
+      return ONLY_NA ? NA_REAL : missing_kind(window, n, weights);
     return s.value[t];
   }
 
@@ -461,7 +696,8 @@ struct ProdKernel : OnePass {
                        int t,
                        int n,
                        double const* window,
-                       double const* weights) {
+                       double const* weights,
+                       bool) {
     double product = s.product[t];
     if (!NA_RM && is_nan(product))
       return missing_kind(window, n, weights);
@@ -494,9 +730,11 @@ struct VarKernel {
 
   template <int T>
   struct State {
-    double total[T];          // sum of the (weighted) values
-    double weight_total[T];   // sum of the weights; unweighted, the count
-    double count[T];          // values that were not NaN, when weighted
+    double total[T];          // raw sum unweighted, scaled sum when weighted
+    double scale[T];          // largest weighted observation magnitude
+    double weight_total[T];   // sum of weights relative to 'weight_scale'
+    double weight_scale[T];   // largest weight, at least one
+    double count[T];          // values that were not NaN
     double mean[T];
     double squares[T];
     double residual[T];
@@ -506,7 +744,9 @@ struct VarKernel {
   static void init(State<T>& s) {
     for (int t = 0; t < T; ++t) {
       s.total[t] = 0.0;
+      s.scale[t] = 0.0;
       s.weight_total[t] = 0.0;
+      s.weight_scale[t] = 1.0;
       s.count[t] = 0.0;
       s.mean[t] = 0.0;
       s.squares[t] = 0.0;
@@ -532,18 +772,58 @@ struct VarKernel {
     for (int t = 0; t < T; ++t) {
       double value = p[t * stride];
       bool ok = !is_nan(value);
-      double w = ok ? weight : 0.0;
-      double v = ok ? value : 0.0;
-      s.total[t] += w * v;
-      s.weight_total[t] += ok ? weight : -0.0;
+      bool contributes = ok && weight != 0.0;
+      if (contributes) {
+        if (weight > s.weight_scale[t]) {
+          double ratio = s.weight_scale[t] / weight;
+          s.total[t] *= ratio;
+          s.weight_total[t] *= ratio;
+          s.weight_scale[t] = weight;
+        }
+        double magnitude = fabs(value);
+        if (magnitude > s.scale[t]) {
+          s.total[t] *= s.scale[t] / magnitude;
+          s.scale[t] = magnitude;
+        }
+        double scaled = s.scale[t] != 0.0 ? value / s.scale[t] : value;
+        s.total[t] += (weight / s.weight_scale[t]) * scaled;
+      }
+      s.weight_total[t] += ok ? weight / s.weight_scale[t] : -0.0;
       s.count[t] += ok ? 1.0 : 0.0;
     }
   }
 
   template <int T>
-  static void prepare(State<T>& s, int) {
+  static void prepare(State<T>& s, int n, double const* p, int stride,
+                      double const* weights) {
+    if (weights) {
+      for (int t = 0; t < T; ++t)
+        s.mean[t] = (s.total[t] / s.weight_total[t]) * s.scale[t];
+      return;
+    }
+    // Keep the ordinary divisions together so the compiler can vectorize
+    // them independently of the exceptional-lane fallback.
+    bool ordinary = true;
+    for (int t = 0; t < T; ++t)
+      ordinary &= fabs(s.total[t]) <= 1e150;
     for (int t = 0; t < T; ++t)
       s.mean[t] = s.total[t] / s.weight_total[t];
+    if (ordinary)
+      return;
+    for (int t = 0; t < T; ++t) {
+      if (!(fabs(s.total[t]) <= 1e150)) {
+        // Ordinary windows need only additions in the first pass. Re-read
+        // exceptional lanes when the total overflowed or is large enough
+        // that rounding the mean could overflow its squared deviations.
+        ScaledSum total;
+        for (int k = 0; k < n; ++k) {
+          double value = p[t * stride + k];
+          if (is_nan(value)) continue;
+          total.add(value);
+        }
+        s.mean[t] = total.mean(s.weight_total[t]);
+      }
+    }
   }
 
   template <int T>
@@ -561,10 +841,25 @@ struct VarKernel {
     for (int t = 0; t < T; ++t) {
       double value = p[t * stride];
       bool ok = !is_nan(value);
-      double w = ok ? weight : 0.0;
-      double difference = ok ? value - s.mean[t] : 0.0;
-      s.squares[t] += w * difference * difference;
-      s.residual[t] += w * difference;
+      double w = ok ? weight / s.weight_scale[t] : 0.0;
+      double difference = ok && weight != 0.0 ? value - s.mean[t] : 0.0;
+      if (ok && weight > 0.0 && w < DBL_MIN && is_finite(difference)) {
+        // A tiny weight ratio can underflow even when multiplying it by a
+        // large deviation yields a substantial contribution. Combine the
+        // exponents before rounding either moment back to a double.
+        int weight_exp, scale_exp, difference_exp;
+        double weight_part = std::frexp(weight, &weight_exp);
+        double scale_part = std::frexp(s.weight_scale[t], &scale_exp);
+        double difference_part = std::frexp(difference, &difference_exp);
+        double moment = (weight_part / scale_part) * difference_part;
+        int exponent = weight_exp - scale_exp + difference_exp;
+        s.residual[t] += std::ldexp(moment, exponent);
+        s.squares[t] +=
+          std::ldexp(moment * difference_part, exponent + difference_exp);
+      } else {
+        s.squares[t] += w * difference * difference;
+        s.residual[t] += w * difference;
+      }
     }
   }
 
@@ -573,28 +868,35 @@ struct VarKernel {
                        int t,
                        int n,
                        double const*,
-                       double const* weights) {
+                       double const* weights,
+                       bool) {
 
     double count = weights ? s.count[t] : s.weight_total[t];
+    double unit = weights ? 1.0 / s.weight_scale[t] : 1.0;
+    return finish_moments(count, s.weight_total[t], unit,
+                          s.squares[t], s.residual[t], n);
+  }
+
+  static double finish_moments(double count, double weight, double unit,
+                               double squares, double residual, int n) {
     if (!NA_RM && count != n)
       return NA_REAL;
 
     // NA for fewer than two values, matching var() on a vector of length 0 or
     // 1; a weight total that is zero or negative (possible with 'normalize =
     // FALSE', or after dropping NAs) has no meaningful answer either
-    double weight = s.weight_total[t];
     double result;
-    if (count < 2 || !(weight > 1)) {
+    if (count < 2 || !(weight > unit)) {
       result = NA_REAL;
-    } else if (s.squares[t] == R_PosInf) {
+    } else if (squares == R_PosInf) {
       // the deviations squared past what a double can hold, so the variance
       // is out of range too -- and the correction would only turn it into a
       // NaN
       result = R_PosInf;
     } else {
-      double total = s.squares[t] - s.residual[t] * s.residual[t] / weight;
+      double total = squares - residual * (residual / weight);
       if (total < 0.0) total = 0.0;
-      result = total / (weight - 1);
+      result = total / (weight - unit);
     }
 
     return IS_SD ? window_sqrt(result) : result;
@@ -602,10 +904,121 @@ struct VarKernel {
 
 };
 
+// The ordinary variance kernel shares the state, unweighted steps, and
+// result semantics with the general kernel. The chunk's input check bounds
+// the data and weights, so its products and sums cannot overflow.
+template <bool NA_RM, bool IS_SD>
+struct OrdinaryVarKernel : VarKernel<NA_RM, IS_SD> {
+  typedef VarKernel<NA_RM, IS_SD> Base;
+  using Base::step;
+  using Base::step2;
+
+  template <int T>
+  static void step(typename Base::template State<T>& s, double const* p,
+                   int stride, double weight) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      bool ok = !is_nan(value);
+      double w = ok ? weight : 0.0;
+      double v = ok ? value : 0.0;
+      s.total[t] += w * v;
+      s.weight_total[t] += ok ? weight : -0.0;
+      s.count[t] += ok ? 1.0 : 0.0;
+    }
+  }
+
+  template <int T>
+  static void prepare(typename Base::template State<T>& s, int,
+                      double const*, int, double const*) {
+    for (int t = 0; t < T; ++t)
+      s.mean[t] = s.total[t] / s.weight_total[t];
+  }
+
+  template <int T>
+  static void step2(typename Base::template State<T>& s, double const* p,
+                    int stride, double weight) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      bool ok = !is_nan(value);
+      double w = ok ? weight : 0.0;
+      double difference = ok ? value - s.mean[t] : 0.0;
+      s.squares[t] += w * difference * difference;
+      s.residual[t] += w * difference;
+    }
+  }
+
+  template <int T>
+  static double finish(typename Base::template State<T> const& s, int t,
+                       int n, double const*, double const* weights, bool) {
+    double count = weights ? s.count[t] : s.weight_total[t];
+    return Base::finish_moments(count, s.weight_total[t], 1.0,
+                                s.squares[t], s.residual[t], n);
+  }
+
+};
+
+// Most kernels finalize lanes independently. Means first divide all lanes
+// together so their rare overflow fallback does not inhibit vectorization.
+template <typename Kernel>
+struct FinishWindows {
+  template <int T>
+  static void run(typename Kernel::template State<T> const& s,
+                  int n, double const* p, int stride,
+                  double const* weights, bool normalize,
+                  double* out, int stride_out) {
+    for (int t = 0; t < T; ++t)
+      out[t * stride_out] =
+        Kernel::finish(s, t, n, p + t * stride, weights, normalize);
+  }
+};
+
+template <bool NA_RM>
+struct FinishWindows< SumKernel<NA_RM, true> > {
+  template <int T>
+  static void run(typename SumKernel<NA_RM, true>::template State<T> const& s,
+                  int n, double const* p, int stride,
+                  double const* weights, bool normalize,
+                  double* out, int stride_out) {
+    for (int t = 0; t < T; ++t) {
+      double denominator = !NA_RM ? (double) n :
+        (weights && normalize ? s.weight_total[t] : (double) s.count[t]);
+      out[t * stride_out] = s.total[t] / denominator;
+    }
+    bool ordinary = true;
+    for (int t = 0; t < T; ++t)
+      ordinary &= is_finite(s.total[t]) &&
+        !SumKernel<NA_RM, true>::underflowedMean(s, t, weights, normalize);
+    if (ordinary) return;
+    for (int t = 0; t < T; ++t) {
+      if (!is_finite(s.total[t]) ||
+          SumKernel<NA_RM, true>::underflowedMean(s, t, weights, normalize))
+        out[t * stride_out] = SumKernel<NA_RM, true>::finish(
+          s, t, n, p + t * stride, weights, normalize);
+    }
+  }
+};
+
+template <bool NA_RM, bool IS_SD>
+struct FinishWindows< OrdinaryVarKernel<NA_RM, IS_SD> > {
+  // Defined after Reduction to reuse the general calculation for windows
+  // whose rounded center would cause substantial cancellation.
+  template <int T>
+  static void run(typename VarKernel<NA_RM, IS_SD>::template State<T> const& s,
+                  int n, double const* p, int stride,
+                  double const* weights, bool normalize,
+                  double* out, int stride_out);
+};
+
 // Drives a kernel over one window, or over a strip of them. A strip walks
 // WIDTH windows abreast.
 template <typename Kernel>
 struct Reduction {
+
+  Reduction() : normalize_(true) {}
+
+  void setNormalize(bool normalize) {
+    normalize_ = normalize;
+  }
 
   // Wide enough that the lanes' arithmetic runs ahead of the loads feeding
   // it; wider only spills the lanes out of registers.
@@ -667,12 +1080,12 @@ private:
   // 'by' apart where STRIDE is zero. A constant stride is what lets the
   // compiler fetch a step's observations as one vector.
   template <int T, int STRIDE>
-  static void run(double const* p,
-                  int by,
-                  int n,
-                  double const* weights,
-                  double* out,
-                  int stride_out) {
+  void run(double const* p,
+           int by,
+           int n,
+           double const* weights,
+           double* out,
+           int stride_out) const {
 
     int stride = STRIDE ? STRIDE : by;
 
@@ -688,7 +1101,7 @@ private:
     }
 
     if (Kernel::PASSES == 2) {
-      Kernel::prepare(state, n);
+      Kernel::prepare(state, n, p, stride, weights);
       if (weights) {
         for (int k = 0; k < n; ++k)
           Kernel::step2(state, p + k, stride, weights[k]);
@@ -698,11 +1111,122 @@ private:
       }
     }
 
-    for (int t = 0; t < T; ++t)
-      out[t * stride_out] = Kernel::finish(state, t, n, p + t * stride, weights);
+    FinishWindows<Kernel>::template run<T>(
+      state, n, p, stride, weights, normalize_, out, stride_out);
 
   }
 
+  bool normalize_;
+
+};
+
+template <bool NA_RM, bool IS_SD>
+template <int T>
+void FinishWindows< OrdinaryVarKernel<NA_RM, IS_SD> >::run(
+    typename VarKernel<NA_RM, IS_SD>::template State<T> const& s,
+    int n, double const* p, int stride, double const* weights, bool normalize,
+    double* out, int stride_out) {
+  typedef VarKernel<NA_RM, IS_SD> Base;
+  for (int t = 0; t < T; ++t)
+    out[t * stride_out] = OrdinaryVarKernel<NA_RM, IS_SD>::finish(
+      s, t, n, p + t * stride, weights, normalize);
+  bool ordinary = true;
+  for (int t = 0; t < T; ++t) {
+    // The dispatch bounds also keep these cross-products in range. Compare
+    // them directly to avoid a second division for every output window.
+    ordinary &= !(s.residual[t] * s.residual[t] >
+                   (0.25 * s.weight_total[t]) * s.squares[t]);
+  }
+  if (ordinary) return;
+  for (int t = 0; t < T; ++t) {
+    if (s.residual[t] * s.residual[t] >
+          (0.25 * s.weight_total[t]) * s.squares[t])
+      out[t * stride_out] = Reduction<Base>()(p, t * stride, weights, n);
+  }
+}
+
+// Select arithmetic within the existing work chunks. Scans then run on the
+// same workers as the windows they protect, and an exceptional observation
+// only sends its own chunk through the general kernel.
+enum KernelKind { GENERAL_KERNEL, ORDINARY_KERNEL, NA_KERNEL };
+
+template <bool NA_RM, bool IS_SD>
+struct VarianceKernels {
+  typedef VarKernel<NA_RM, IS_SD> General;
+  typedef OrdinaryVarKernel<NA_RM, IS_SD> Ordinary;
+  typedef Ordinary Missing;
+
+  static KernelKind select(double const* x, int size,
+                            double const* weights, int n) {
+    // Frequency weights are already validated. These conservative bounds
+    // keep sums, moments, and their cross-products in range for int-sized
+    // windows. Tiny weight ratios retain the scaled calculation.
+    if (weights) {
+      for (int i = 0; i < n; ++i) {
+        double w = weights[i];
+        if (w != 0.0 && (w < 1e-50 || w > 1e50)) return GENERAL_KERNEL;
+      }
+    }
+    bool ordinary = true;
+    for (int i = 0; i < size; ++i) {
+      double magnitude = fabs(x[i]);
+      // Comparisons with NaN are false: missing observations are eligible.
+      ordinary &= !((magnitude != 0.0 && magnitude < 1e-50) || magnitude > 1e50);
+    }
+    return ordinary ? ORDINARY_KERNEL : GENERAL_KERNEL;
+  }
+};
+
+template <bool NA_RM, bool IS_MIN>
+struct ExtremumKernels {
+  typedef ExtremumKernel<NA_RM, IS_MIN> General;
+  typedef ExtremumKernel<NA_RM, IS_MIN, false> Ordinary;
+  typedef ExtremumKernel<NA_RM, IS_MIN, true, true> Missing;
+
+  static KernelKind select(double const* x, int size,
+                            double const* weights, int n) {
+    if (NA_RM || !weights) return GENERAL_KERNEL;
+    for (int i = 0; i < n; ++i)
+      if (!is_finite(weights[i])) return GENERAL_KERNEL;
+    // Finite factors can overflow to infinity, but never produce a NaN.
+    bool finite = true;
+    for (int i = 0; i < size; ++i) finite &= is_finite(x[i]);
+    if (finite) return ORDINARY_KERNEL;
+    // If NA is the only non-finite input, every missing product is NA.
+    // Classify once here instead of rescanning each overlapping window.
+    for (int i = 0; i < size; ++i)
+      if (!is_finite(x[i]) && !ISNA(x[i])) return GENERAL_KERNEL;
+    return NA_KERNEL;
+  }
+};
+
+template <typename Kernels>
+struct AdaptiveReduction : Reduction<typename Kernels::General> {
+  typedef Reduction<typename Kernels::General> Base;
+
+  // These variance/extremum kernels consume the prepared weights directly;
+  // their results do not depend on Reduction's mean-normalization flag.
+  void strip(double const* x, int start, int by, int n,
+             double const* weights, int count, double* out, int stride) const {
+    if (!count) return;
+    // Do not scan gaps between disjoint windows: that could cost more than
+    // evaluating all of the requested windows with the general kernel.
+    if (by > n) {
+      Base::strip(x, start, by, n, weights, count, out, stride);
+      return;
+    }
+    // Validated window geometry bounds this span by the input length.
+    int size = (count - 1) * by + n;
+    KernelKind kind = Kernels::select(x + start, size, weights, n);
+    if (kind == ORDINARY_KERNEL)
+      Reduction<typename Kernels::Ordinary>().strip(
+        x, start, by, n, weights, count, out, stride);
+    else if (kind == NA_KERNEL)
+      Reduction<typename Kernels::Missing>().strip(
+        x, start, by, n, weights, count, out, stride);
+    else
+      Base::strip(x, start, by, n, weights, count, out, stride);
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -721,19 +1245,41 @@ template <bool NA_RM>
 struct sum_f : Reduction< SumKernel<NA_RM, false> > {};
 
 template <bool NA_RM>
-struct min_f : Reduction< ExtremumKernel<NA_RM, true> > {};
+struct min_f : AdaptiveReduction< ExtremumKernels<NA_RM, true> > {};
 
 template <bool NA_RM>
-struct max_f : Reduction< ExtremumKernel<NA_RM, false> > {};
+struct max_f : AdaptiveReduction< ExtremumKernels<NA_RM, false> > {};
 
 template <bool NA_RM>
 struct prod_f : Reduction< ProdKernel<NA_RM> > {};
 
 template <bool NA_RM>
-struct var_f : Reduction< VarKernel<NA_RM, false> > {};
+struct var_f : AdaptiveReduction< VarianceKernels<NA_RM, false> > {};
 
 template <bool NA_RM>
-struct sd_f : Reduction< VarKernel<NA_RM, true> > {};
+struct sd_f : AdaptiveReduction< VarianceKernels<NA_RM, true> > {};
+
+// Variance treats weights as repeat counts, for which negative or non-finite
+// values have no statistical meaning. Other operations retain their broader
+// historical weight semantics.
+inline void validate_frequency_weights(double const* weights, int n) {
+  for (int i = 0; i < n; ++i)
+    if (!is_finite(weights[i]) || weights[i] < 0.0)
+      Rf_error("'weights' should be finite and non-negative for variance");
+}
+
+template <typename Callable>
+inline void validate_weights(Callable, double const*, int) {}
+
+template <bool NA_RM>
+inline void validate_weights(var_f<NA_RM>, double const* weights, int n) {
+  validate_frequency_weights(weights, n);
+}
+
+template <bool NA_RM>
+inline void validate_weights(sd_f<NA_RM>, double const* weights, int n) {
+  validate_frequency_weights(weights, n);
+}
 
 // The strip form of a function with no lane-wise kernel: one window at a time.
 template <typename Callable>
@@ -933,7 +1479,7 @@ inline double select_median(std::vector<double>& scratch, bool lower) {
     // other middle value is simply the largest of that part
     double lower_middle =
       *std::max_element(scratch.begin(), scratch.begin() + n / 2);
-    return (lower_middle + upper) / 2;
+    return midpoint(lower_middle, upper);
   }
 
   return upper;
@@ -947,6 +1493,8 @@ struct median_f;
 
 template <bool LOWER>
 struct median_f<false, LOWER> {
+
+  void setNormalize(bool) {}
 
   inline double operator()(double const* x, int offset, int n) {
 
@@ -993,6 +1541,8 @@ private:
 
 template <bool LOWER>
 struct median_f<true, LOWER> {
+
+  void setNormalize(bool) {}
 
   inline double operator()(double const* x, int offset, int n) {
 
@@ -1216,6 +1766,8 @@ public:
 
   // one add and one subtract per observation entering or leaving, against a
   // strip that under na.rm masks each observation, and for a mean counts it
+  // Keep compensation even for a single wide window: direct accumulation
+  // can lose small terms between cancelling large values.
   static bool worthwhile(int n, int by, int) {
     int contiguous = NA_RM ? (IS_MEAN ? 52 : 64) : 128;
     int strided = NA_RM ? (IS_MEAN ? 28 : 36) : 64;
@@ -1268,6 +1820,27 @@ public:
     if (!IS_MEAN)
       return result;
 
+    // A finite window can have an overflowing running sum but a representable
+    // mean. Re-sum only that exceptional case after scaling the observations;
+    // the common path above remains bit-for-bit unchanged.
+    if (!is_finite(result) && !n_pos_inf_ && !n_neg_inf_) {
+      double scale = 0.0;
+      for (int i = this->start_; i <= this->end_; ++i) {
+        double value = this->x_[i];
+        if (is_finite(value) && fabs(value) > scale)
+          scale = fabs(value);
+      }
+      if (scale > 0.0) {
+        double scaled_total = 0.0;
+        for (int i = this->start_; i <= this->end_; ++i) {
+          double value = this->x_[i];
+          if (is_finite(value))
+            scaled_total += value / scale;
+        }
+        return (scaled_total / n_finite_) * scale;
+      }
+    }
+
     // mean() divides by the number of values it actually saw; an empty window
     // gives the NaN that 0 / 0 produces, as it did before
     return result / (n_finite_ + n_pos_inf_ + n_neg_inf_);
@@ -1300,7 +1873,8 @@ public:
     clear();
   }
 
-  // two running sums against two passes over the window
+  // two running sums against two passes over the window. Keep the scaled
+  // center and compensation for wide windows even when few outputs remain.
   static bool worthwhile(int n, int by, int) {
     return incrementalWins(n, by, 28, 10);
   }
@@ -1330,16 +1904,16 @@ public:
   // well conditioned; add() would otherwise fall back on the first value it
   // saw, which can sit arbitrarily far from the mean.
   void prepare(int start, int end) {
-    double total = 0.0;
+    ScaledSum total;
     int count = 0;
     for (int i = start; i <= end; ++i) {
       double value = this->x_[i];
       if (is_finite(value)) {
-        total += value;
+        total.add(value);
         ++count;
       }
     }
-    shift_ = count ? total / count : 0.0;
+    shift_ = count ? total.mean(count) : 0.0;
     have_shift_ = true;
   }
 
@@ -1432,7 +2006,7 @@ private:
 // max the later. The pass that walks against the data's order asks strictly
 // where the pass that walks with it does not, and where the two halves meet
 // the same side wins. A NaN loses every comparison and so drops out on its
-// own; without na.rm, each pass also carries whether it has met one.
+// own; without na.rm, each pass also carries which kind it has met.
 template <bool NA_RM, bool IS_MIN>
 class ExtremumAccumulator {
 
@@ -1472,15 +2046,18 @@ public:
       // the data, but no window starts in one that is.
       int block_end = block + n < span ? block + n : span;
       double running = identity();
-      bool na = false;
+      char missing = 0;
       for (int i = block_end - 1; i >= block; --i) {
         double value = x[i];
         running = backward(value, running);
         suffix[i - block] = running;
         if (!NA_RM) {
-          if (is_nan(value))
-            na = true;
-          suffix_na[i - block] = na;
+          if (is_nan(value)) {
+            char kind = ISNA(value) ? 2 : 1;
+            if (kind > missing)
+              missing = kind;
+          }
+          suffix_na[i - block] = missing;
         }
       }
 
@@ -1488,7 +2065,7 @@ public:
       // itself; the rest reach into the next block, over which a prefix
       // extremum walks forward as far as each window needs.
       double prefix = identity();
-      bool prefix_na = false;
+      char prefix_missing = 0;
       int next = block + n;
       for (; j < count; ++j) {
 
@@ -1497,23 +2074,30 @@ public:
           break;
 
         double result;
-        bool result_na;
+        char result_missing;
         if (first == block) {
           result = suffix[0];
-          result_na = !NA_RM && suffix_na[0];
+          result_missing = !NA_RM ? suffix_na[0] : 0;
         } else {
           int last = first + n - 1;
           for (; next <= last; ++next) {
             double value = x[next];
             prefix = forward(value, prefix);
-            if (!NA_RM && is_nan(value))
-              prefix_na = true;
+            if (!NA_RM && is_nan(value)) {
+              char kind = ISNA(value) ? 2 : 1;
+              if (kind > prefix_missing)
+                prefix_missing = kind;
+            }
           }
           result = meet(suffix[first - block], prefix);
-          result_na = !NA_RM && (suffix_na[first - block] || prefix_na);
+          result_missing = !NA_RM
+            ? std::max(suffix_na[first - block], prefix_missing)
+            : 0;
         }
 
-        out[j * stride] = result_na ? NA_REAL : result;
+        out[j * stride] = result_missing
+          ? (result_missing == 2 ? NA_REAL : R_NaN)
+          : result;
       }
     }
 
@@ -1693,7 +2277,7 @@ public:
     if (LOWER)
       return sorted_[(k - 1) / 2];
     if (k % 2 == 0)
-      return (sorted_[k / 2 - 1] + sorted_[k / 2]) / 2;
+      return midpoint(sorted_[k / 2 - 1], sorted_[k / 2]);
     return sorted_[k / 2];
   }
 
@@ -1772,7 +2356,7 @@ private:
     double lower_top = this->x_[lower_.front()];
     if (LOWER || k % 2 == 1)
       return lower_top;
-    return (lower_top + this->x_[upper_.front()]) / 2;
+    return midpoint(lower_top, this->x_[upper_.front()]);
   }
 
   // move one live top across whenever the halves drift apart; each step
@@ -1853,17 +2437,11 @@ private:
 
 };
 
-// Running product behind prod(). A slid window would have to divide out each
-// departing value, and division cannot be trusted with the job: a zero has no
-// inverse, an overflow or underflow is absorbing, and even where it is
-// defined, dividing reintroduces rounding the original multiplication never
-// had. The window is carried as two stacks instead -- values multiply into a
-// running back product as they arrive, and when the oldest value must leave,
-// the back stack is flipped once into suffix products, from which each
-// removal is a pop. Every observation is touched at most twice, so a slide
-// still costs O(1) amortized, and no product outlives the observations that
-// made it: a zero or an infinity is gone from the state the moment the flip
-// walks past it.
+// Running products may regroup ordinary finite factors, but must not change
+// whether a window overflows or underflows. Track a conservative bound on
+// the sum of absolute base-two logarithms, in integer units of 1/1024. Below
+// 512, every subset product stays far from either limit of a normal double.
+// Other windows use the direct kernel, preserving forward multiplication.
 template <bool NA_RM>
 class ProdAccumulator :
   public WindowAccumulator< ProdAccumulator<NA_RM> > {
@@ -1873,7 +2451,8 @@ class ProdAccumulator :
 public:
 
   template <typename Callable>
-  ProdAccumulator(Callable, double const* x, int n) : Base(x, n) {
+  ProdAccumulator(Callable, double const* x, int n)
+    : Base(x, n), defer_direct_(false) {
     if (n > 0) {
       back_.reserve(n);
       suffix_.reserve(n);
@@ -1881,10 +2460,10 @@ public:
     clear();
   }
 
-  // one multiply entering and an amortized one leaving, against a strip
-  // that multiplies its windows abreast
-  static bool worthwhile(int n, int by, int) {
-    return incrementalWins(n, by, NA_RM ? 52 : 96, NA_RM ? 32 : 36);
+  // A short strip avoids initializing the stacks and scanning the risk bound.
+  static bool worthwhile(int n, int by, int outputs) {
+    return outputs > 16 &&
+      incrementalWins(n, by, NA_RM ? 52 : 96, NA_RM ? 32 : 36);
   }
 
   // products are never differenced, so there is no cancellation to guard;
@@ -1899,11 +2478,13 @@ public:
     suffix_.clear();
     back_product_ = 1.0;
     n_na_ = n_nan_ = 0;
+    risk_ = 0;
   }
 
   void add(int i) {
     double value = this->x_[i];
     if (is_nan(value)) { if (ISNA(value)) ++n_na_; else ++n_nan_; return; }
+    risk_ += riskUnits(value);
     back_.push_back(value);
     back_product_ *= value;
   }
@@ -1911,6 +2492,7 @@ public:
   void remove(int i) {
     double value = this->x_[i];
     if (is_nan(value)) { if (ISNA(value)) --n_na_; else --n_nan_; return; }
+    risk_ -= riskUnits(value);
 
     // out of suffixes: flip the back stack into suffix products, oldest on
     // top, so that this and the following removals are single pops
@@ -1937,12 +2519,63 @@ public:
     if (!NA_RM && (n_na_ || n_nan_))
       return n_na_ ? NA_REAL : R_NaN;
 
+    if (needsDirect())
+      return defer_direct_ ? 0.0 : direct_(
+        this->x_, this->start_, this->end_ - this->start_ + 1);
+
     double front = suffix_.empty() ? 1.0 : suffix_.back();
     return front * back_product_;
   }
 
+  void computeStrip(int start, int by, int count, double* out, int stride) {
+    // Batch consecutive exceptional windows into SIMD strips as well,
+    // avoiding a separate scalar calculation for each risky window.
+    defer_direct_ = true;
+    int pending = -1;
+    auto flush = [&](int end) {
+      if (pending < 0) return;
+      direct_.strip(this->x_, start + pending * by, by, this->n_,
+                    (double const*) NULL, end - pending,
+                    out + pending * stride, stride);
+      pending = -1;
+    };
+    for (int j = 0; j < count; ++j) {
+      int first = start + j * by;
+      double result = this->compute(first, first + this->n_ - 1);
+      if (needsDirect()) {
+        if (pending < 0) pending = j;
+      } else {
+        flush(j);
+        out[j * stride] = result;
+      }
+    }
+    flush(count);
+    defer_direct_ = false;
+  }
+
 private:
 
+  static int riskUnits(double value) {
+    double magnitude = fabs(value);
+    if (magnitude == 0.0 || !is_finite(magnitude))
+      return 1024 * 1024;
+    double distance = fabs(magnitude - 1.0);
+    // On [0.5, 1.5], |log2(x)| <= 4 * |x - 1|. This avoids a
+    // transcendental call for returns and other factors close to one.
+    if (distance <= 0.5)
+      return (int) std::ceil(4096.0 * distance);
+    int exponent;
+    std::frexp(magnitude, &exponent);
+    return 1024 * (magnitude > 1.0 ? exponent : 1 - exponent);
+  }
+
+  bool needsDirect() const {
+    return risk_ >= 512 * 1024 && (NA_RM || !(n_na_ || n_nan_));
+  }
+
+  prod_f<NA_RM> direct_;
+  long long risk_;
+  bool defer_direct_;
   std::vector<double> back_;    // values since the last flip, oldest first
   std::vector<double> suffix_;  // suffix products, the oldest value's on top
   double back_product_;
@@ -2045,16 +2678,24 @@ extern "C" {
 extern int rcpproll_forked;
 }
 
-// The thread count requested through options(RcppRoll.threads = <n>). Values
-// below 1, and a missing option, defer to the OpenMP runtime default, which
-// itself respects e.g. OMP_NUM_THREADS. Reads an R option, so this must stay
-// on the main thread, outside any parallel region.
+// The thread count requested through options(RcppRoll.threads = <n>). A
+// missing option defers to the OpenMP runtime default, which itself respects
+// e.g. OMP_NUM_THREADS. Reads an R option, so this must stay on the main
+// thread, outside any parallel region.
 inline int requestedThreads() {
   SEXP option = Rf_GetOption1(Rf_install("RcppRoll.threads"));
   if (option != R_NilValue) {
-    int threads = Rf_asInteger(option);
-    if (threads != NA_INTEGER && threads >= 1)
-      return threads;
+    if ((TYPEOF(option) != INTSXP && TYPEOF(option) != REALSXP) ||
+        Rf_isObject(option) || Rf_xlength(option) != 1)
+      Rf_error("option 'RcppRoll.threads' should be a positive integer scalar");
+
+    double requested = TYPEOF(option) == INTSXP
+      ? (double) INTEGER(option)[0]
+      : REAL(option)[0];
+    if (!is_finite(requested) || requested < 1.0 || requested > INT_MAX ||
+        requested != floor(requested))
+      Rf_error("option 'RcppRoll.threads' should be a positive integer scalar");
+    return (int) requested;
   }
   return omp_get_max_threads();
 }
@@ -2097,9 +2738,8 @@ inline double roll_clipped(Accumulator& accumulator,
                            int leftOffset,
                            int rightOffset) {
   int start = i - leftOffset;
-  int stop  = i + rightOffset;
+  int stop = rightOffset > x_n - 1 - i ? x_n - 1 : i + rightOffset;
   if (start < 0) start = 0;
-  if (stop > x_n - 1) stop = x_n - 1;
   return accumulator.compute(start, stop);
 }
 
@@ -2123,7 +2763,7 @@ void roll_partial_windows(Accumulator const& prototype,
   // 'rightOffset' from the end are whole: those from 'whole_from' up to
   // 'whole_to'. A window wider than the data leaves none, bar the case of a
   // single observation, whose window has the accumulator's (clipped) width.
-  int whole_from = (leftOffset + by - 1) / by;
+  int whole_from = leftOffset / by + (leftOffset % by != 0);
   int whole_to = x_n - 1 - rightOffset >= 0
     ? (x_n - 1 - rightOffset) / by + 1
     : 0;
@@ -2227,7 +2867,9 @@ int roll_fill_windows(Accumulator const& prototype,
     accumulator.computeStrip(i - padLeftTimes, by, end - begin, output + i, by);
   }
 
-  return from + ops * by;
+  return ops
+    ? (int) ((long long) from + (long long) (ops - 1) * by + 1)
+    : from;
 }
 
 template <typename Callable>
@@ -2244,7 +2886,7 @@ void roll_vector_fill_into(Callable f,
                            int threads) {
 
   if (x_n < n) {
-    std::fill(output, output + x_n, NA_REAL);
+    std::fill(output, output + x_n, fill.left());
     return;
   }
 
@@ -2283,10 +2925,7 @@ void roll_vector_fill_into(Callable f,
         padLeftTimes, threads);
   }
 
-  // Fill-right on the remainders. We move the index
-  // back one 'by' iteration, then move it back one.
-  i -= by;
-  ++i;
+  // Fill-right on the remainders after the last computed window.
   for (; i < output_n; ++i)
     output[i] = fill.right();
 
@@ -2534,6 +3173,16 @@ SEXP roll_with(Callable f,
   // from sizing an output the window loops would then write past
   if (n < 1)
     Rf_error("'n' should be a positive integer");
+  if (by < 1)
+    Rf_error("'by' should be a positive integer");
+
+  // Validate before normalized weights allocate. The same offset helpers may
+  // run inside an OpenMP worker after dispatch, where the R API is forbidden.
+  getLeftOffset(align, n);
+
+  double const* raw_weights = weights_n ? REAL(weights) : NULL;
+  validate_weights(f, raw_weights, weights_n);
+  f.setNormalize(normalize);
 
   // read once, up front: the option is R state, and the walks below may
   // leave the main thread
@@ -2542,14 +3191,16 @@ SEXP roll_with(Callable f,
   // uniform weights are an unweighted call in disguise, so route them to the
   // unweighted loops, which carry their windows incrementally where the
   // weighted forms recompute every window
-  if (weightsAreUniform(REAL(weights), weights_n, normalize))
+  if (weightsAreUniform(raw_weights, weights_n, normalize))
     return roll_dispatch(
       uniform_equivalent(f), data, n,
       (double const*) NULL, 0, by, fill, partial, align, threads);
 
+  // Unnormalized weights are read-only throughout dispatch. The .Call
+  // argument keeps their storage alive until all columns and workers finish.
   std::vector<double> scaled =
-    normalizeWeights(REAL(weights), weights_n, n, normalize);
-  double const* weights_data = scaled.empty() ? NULL : &scaled[0];
+    normalizeWeights(raw_weights, weights_n, n, normalize);
+  double const* weights_data = scaled.empty() ? raw_weights : &scaled[0];
 
   return roll_dispatch(
     f, data, n, weights_data, weights_n, by, fill, partial, align, threads);
@@ -2560,6 +3211,30 @@ SEXP roll_with(Callable f,
 
 extern "C" SEXP na_locf(SEXP x)
 {
+  // Factors are integer vectors with level/class attributes. Coercing their
+  // storage to double while retaining those attributes creates a malformed
+  // factor, so carry the integer codes forward in place on a duplicate.
+  if (Rf_inherits(x, "factor"))
+  {
+    if (TYPEOF(x) != INTSXP)
+      Rf_error("malformed factor");
+
+    SEXP output = PROTECT(Rf_duplicate(x));
+    int* data = INTEGER(output);
+    R_xlen_t n = Rf_xlength(output);
+    int lastNonNA = NA_INTEGER;
+    for (R_xlen_t i = 0; i < n; ++i)
+    {
+      int value = data[i];
+      if (value != NA_INTEGER)
+        lastNonNA = value;
+      else
+        data[i] = lastNonNA;
+    }
+    UNPROTECT(1);
+    return output;
+  }
+
   // a double vector with nothing missing is its own answer -- return it
   // rather than copying it
   if (TYPEOF(x) == REALSXP)
@@ -2796,4 +3471,3 @@ extern "C" SEXP roll_var_impl(SEXP x,
   }
 }
 // End auto-generated exports (internal/make-exports.R)
-

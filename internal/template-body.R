@@ -10,7 +10,8 @@ roll_%s <- function(x,
                     normalize = TRUE,
                     na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_%s_impl,
@@ -38,7 +39,8 @@ roll_%sr <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_%s_impl,
@@ -66,7 +68,8 @@ roll_%sl <- function(x,
                      normalize = TRUE,
                      na.rm = FALSE)
 {
-  n <- checkRollArgs(n, weights, partial, missing(n), missing(fill))
+  n <- checkRollArgs(
+    n, weights, by, partial, normalize, na.rm, missing(n), missing(fill))
 
   .Call(
     C_roll_%s_impl,

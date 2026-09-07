@@ -1,0 +1,43 @@
+diff --git a/src/RcppRoll.cpp b/src/RcppRoll.cpp
+index 559fad4..5505dfd 100644
+--- a/src/RcppRoll.cpp
++++ b/src/RcppRoll.cpp
+@@ -10,6 +10,20 @@
+ #include <utility>
+ #include <vector>
+ 
++// Feature-test the builtin: it is a compiler intrinsic, not a macro that
++// can itself be tested with #ifdef. Unsupported compilers keep the condition.
++#if defined(__has_builtin)
++# if __has_builtin(__builtin_expect)
++#  define RCPPROLL_LIKELY(condition) (__builtin_expect(!!(condition), 1))
++#  define RCPPROLL_UNLIKELY(condition) (__builtin_expect(!!(condition), 0))
++# endif
++#endif
++
++#ifndef RCPPROLL_LIKELY
++# define RCPPROLL_LIKELY(condition) (!!(condition))
++# define RCPPROLL_UNLIKELY(condition) (!!(condition))
++#endif
++
+ #ifdef _OPENMP
+ # include <omp.h>
+ #endif
+@@ -194,7 +208,7 @@ inline std::vector<double> normalizeWeights(double const* weights,
+   // Keep exponent recovery outside the ordinary normalization loops so the
+   // compiler can still vectorize their divisions and stores. These tiny
+   // intermediate ratios cannot overflow after recovery for int-sized n.
+-  if (underflow)
++  if (RCPPROLL_UNLIKELY(underflow))
+     for (int i = 0; i < weights_n; ++i)
+       scaled[i] = normalizedWeight(weights[i], scale, total, n);
+ 
+@@ -988,7 +1002,7 @@ struct FinishWindows< SumKernel<NA_RM, true> > {
+     for (int t = 0; t < T; ++t)
+       ordinary &= is_finite(s.total[t]) &&
+         !SumKernel<NA_RM, true>::underflowedMean(s, t, weights, normalize);
+-    if (ordinary) return;
++    if (RCPPROLL_LIKELY(ordinary)) return;
+     for (int t = 0; t < T; ++t) {
+       if (!is_finite(s.total[t]) ||
+           SumKernel<NA_RM, true>::underflowedMean(s, t, weights, normalize))

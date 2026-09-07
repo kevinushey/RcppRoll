@@ -27,7 +27,49 @@
   windows per column, avoiding the cost of building incremental median state
   for too few outputs to benefit from it. (#59)
 
+- `roll_prod()` now uses direct window calculations for calls with at most
+  sixteen outputs per column, avoiding incremental setup for short results.
+  Unnormalized weights are read directly, avoiding a temporary copy.
+
+- Ordinary variance and standard deviation use bounded arithmetic,
+  retaining the scaled calculation for extreme inputs and poorly centered
+  windows. Weighted extrema classify inputs once per work chunk, and means
+  finalize ordinary windows together, reducing the cost of numerical and
+  missing-value safeguards on large vectors with small weight vectors. Input
+  checks run within the existing work chunks so they benefit from OpenMP too.
+
 ## Bug fixes
+
+- Normalized weighted means retain representable results when removing
+  missing observations leaves tiny weights whose products underflow.
+
+- Rolling products use forward multiplication for windows at risk of overflow
+  or underflow, including zeros and infinities. Ordinary windows retain the
+  incremental two-stack path; regrouping can change rounding in the low bits.
+  Previously, regrouping could return `NaN` where a fresh product returned zero.
+
+- Large finite values no longer overflow the intermediate sum used for means,
+  median midpoints, or centering variance and standard deviation calculations.
+  Normalizing finite weights now tolerates a huge common scale and preserves
+  representable subnormal weights through rescaling. Frequency weights avoid
+  unnecessary overflow or underflow in variance contributions.
+  Squared deviations can still overflow, including when the final standard
+  deviation would be representable.
+
+- `n`, `by`, logical controls, weight normalization, and frequency weights for
+  variance are now validated before dispatch. This also prevents integer
+  overflow for very large valid `by` values.
+
+- Weighted minima and maxima now apply missing-value handling to the weighted
+  product and preserve the distinction between `NA` and `NaN`. Unweighted
+  extrema preserve that distinction as well.
+
+- Custom `fill` values are now recycled to the documented three regions and
+  apply when the input is shorter than the window. `na_locf()` now preserves
+  valid factor storage while carrying factor levels forward.
+
+- With unnormalized weights, `na.rm = TRUE` no longer changes a complete
+  weighted mean's denominator.
 
 - Without `na.rm`, a from-scratch sum, mean or product over a window holding
   both an `NA` and a `NaN` now reports `NA`, as the incremental routines

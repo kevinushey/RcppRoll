@@ -1,8 +1,9 @@
 #' Report the Number of Threads Used for Rolling Computations
 #'
 #' Reports how many threads the rolling computations would put to work on a
-#' large enough input. The count honors \code{options(RcppRoll.threads)}
-#' where that is set, and otherwise defers to the \code{OpenMP} runtime
+#' large enough input. The \code{options(RcppRoll.threads)} value, when set,
+#' must be a positive integer scalar; otherwise the count defers to the
+#' \code{OpenMP} runtime
 #' default (typically controlled through the \code{OMP_NUM_THREADS}
 #' environment variable). Small inputs are always computed serially, and
 #' results do not depend on the number of threads used.
