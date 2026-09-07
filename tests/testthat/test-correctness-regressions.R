@@ -117,6 +117,47 @@ test_that("representable location and spread statistics stay finite", {
 
 })
 
+test_that("product guards recover as exceptional factors enter and leave", {
+
+  x <- rep(c(1.001, 0.999, -1.001, -0.999), 200)
+  x[200:205] <- c(0, 1e308, 2, NA, NaN, Inf)
+  x[400:405] <- c(2^600, 2^600, 2^-600, 2^-600, -0.0, -Inf)
+  forward <- function(window, remove) {
+    if (remove) window <- window[!is.na(window)]
+    if (any(is.na(window) & !is.nan(window))) return(NA_real_)
+    Reduce(`*`, window, init = 1)
+  }
+  for (remove in c(FALSE, TRUE)) {
+    for (by in c(1L, 3L)) {
+      starts <- seq(1L, length(x) - 128L + 1L, by = by)
+      expected <- vapply(starts, function(i)
+        forward(x[i:(i + 127L)], remove), numeric(1))
+      actual <- roll_prod(x, 128, by = by, na.rm = remove)
+      expect_equal(actual, expected)
+      expect_identical(is.nan(actual), is.nan(expected))
+      zeros <- which(!is.na(expected) & expected == 0)
+      expect_identical(1 / actual[zeros], 1 / expected[zeros])
+    }
+    expected <- vapply(seq_along(x), function(i)
+      forward(x[max(1L, i - 127L):i], remove), numeric(1))
+    expect_equal(roll_prodr(x, 128, partial = TRUE, na.rm = remove), expected)
+  }
+
+})
+
+test_that("variance rescales overflowing lanes without disturbing neighbours", {
+
+  x <- c(rep(1e306, 12), 1:20)
+  for (remove in c(FALSE, TRUE)) {
+    expect_equal(roll_var(x, 10, na.rm = remove)[1:3], rep(0, 3))
+    expect_equal(tail(roll_var(x, 10, na.rm = remove), 11),
+                 rep(var(1:10), 11))
+    expect_equal(tail(roll_sd(x, 10, na.rm = remove), 11),
+                 rep(sd(1:10), 11))
+  }
+
+})
+
 test_that("normalizing finite weights is invariant to a huge common scale", {
 
   x <- c(1, 2, 3)

@@ -39,3 +39,21 @@ test_that("the warning does not change the computed result (#39)", {
   )
 
 })
+
+test_that("weights override even an invalid or absent window size", {
+
+  names <- grep("^roll_(mean|median|min|max|prod|sum|sd|var)[lr]?$",
+                getNamespaceExports("RcppRoll"), value = TRUE)
+  for (name in names) {
+    roll <- get(name, envir = asNamespace("RcppRoll"))
+    expected <- roll(1:5, weights = c(1, 1))
+    for (n in list(NULL, NA_real_, Inf, 0, 1.5, c(2, 3), "unused")) {
+      expect_warning(
+        actual <- roll(1:5, n = n, weights = c(1, 1)),
+        "'n' is ignored"
+      )
+      expect_equal(actual, expected)
+    }
+  }
+
+})

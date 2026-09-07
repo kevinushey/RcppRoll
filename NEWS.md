@@ -29,14 +29,17 @@
 
 ## Bug fixes
 
-- Rolling products once again multiply every window from left to right. The
-  incremental two-stack path could change floating-point grouping and return
-  `NaN` where a fresh product returned zero.
+- Rolling products use forward multiplication for windows at risk of overflow
+  or underflow, including zeros and infinities. Ordinary windows retain the
+  incremental two-stack path; regrouping can change rounding in the low bits.
+  Previously, regrouping could return `NaN` where a fresh product returned zero.
 
-- Large finite values no longer overflow intermediate sums when the resulting
-  mean, median, variance, or standard deviation is representable. Normalizing
-  finite weights is now invariant to a huge common scale, and unnormalized
-  frequency weights no longer overflow variance totals unnecessarily.
+- Large finite values no longer overflow the intermediate sum used for means,
+  median midpoints, or centering variance and standard deviation calculations.
+  Normalizing finite weights now tolerates a huge common scale, and frequency
+  weights avoid unnecessary overflow or underflow in variance contributions.
+  Squared deviations can still overflow, including when the final standard
+  deviation would be representable.
 
 - `n`, `by`, logical controls, weight normalization, and frequency weights for
   variance are now validated before dispatch. This also prevents integer

@@ -340,7 +340,8 @@ private:
 
 struct OnePass {
   static const int PASSES = 1;
-  template <typename Lanes> static void prepare(Lanes&, int) {}
+  template <typename Lanes>
+  static void prepare(Lanes&, int, double const*, int, double const*) {}
   template <typename Lanes> static void step2(Lanes&, double const*, int) {}
   template <typename Lanes> static void step2(Lanes&, double const*, int, double) {}
 };
@@ -661,8 +662,8 @@ struct VarKernel {
 
   template <int T>
   struct State {
-    double total[T];          // sum of values after scaling by 'scale'
-    double scale[T];          // largest magnitude encountered
+    double total[T];          // raw sum unweighted, scaled sum when weighted
+    double scale[T];          // largest weighted observation magnitude
     double weight_total[T];   // sum of weights relative to 'weight_scale'
     double weight_scale[T];   // largest weight, at least one
     double count[T];          // values that were not NaN
@@ -693,16 +694,8 @@ struct VarKernel {
     for (int t = 0; t < T; ++t) {
       double value = p[t * stride];
       bool ok = !is_nan(value);
-      if (ok) {
-        double magnitude = fabs(value);
-        if (magnitude > s.scale[t]) {
-          s.total[t] *= s.scale[t] / magnitude;
-          s.scale[t] = magnitude;
-        }
-        s.total[t] += s.scale[t] != 0.0 ? value / s.scale[t] : value;
-      }
+      s.total[t] += ok ? value : -0.0;
       s.weight_total[t] += ok ? 1.0 : 0.0;
-      s.count[t] += ok ? 1.0 : 0.0;
     }
   }
 
@@ -733,9 +726,42 @@ struct VarKernel {
   }
 
   template <int T>
-  static void prepare(State<T>& s, int) {
+  static void prepare(State<T>& s, int n, double const* p, int stride,
+                      double const* weights) {
+    if (weights) {
+      for (int t = 0; t < T; ++t)
+        s.mean[t] = (s.total[t] / s.weight_total[t]) * s.scale[t];
+      return;
+    }
+    // Keep the ordinary divisions together so the compiler can vectorize
+    // them independently of the exceptional-lane fallback.
+    bool ordinary = true;
     for (int t = 0; t < T; ++t)
-      s.mean[t] = (s.total[t] / s.weight_total[t]) * s.scale[t];
+      ordinary &= fabs(s.total[t]) <= 1e150;
+    for (int t = 0; t < T; ++t)
+      s.mean[t] = s.total[t] / s.weight_total[t];
+    if (ordinary)
+      return;
+    for (int t = 0; t < T; ++t) {
+      if (!(fabs(s.total[t]) <= 1e150)) {
+        // Ordinary windows need only additions in the first pass. Re-read
+        // exceptional lanes when the total overflowed or is large enough
+        // that rounding the mean could overflow its squared deviations.
+        double total = 0.0;
+        double scale = 0.0;
+        for (int k = 0; k < n; ++k) {
+          double value = p[t * stride + k];
+          if (is_nan(value)) continue;
+          double magnitude = fabs(value);
+          if (magnitude > scale) {
+            total *= scale / magnitude;
+            scale = magnitude;
+          }
+          total += scale != 0.0 ? value / scale : value;
+        }
+        s.mean[t] = (total / s.weight_total[t]) * scale;
+      }
+    }
   }
 
   template <int T>
@@ -904,7 +930,7 @@ private:
     }
 
     if (Kernel::PASSES == 2) {
-      Kernel::prepare(state, n);
+      Kernel::prepare(state, n, p, stride, weights);
       if (weights) {
         for (int k = 0; k < n; ++k)
           Kernel::step2(state, p + k, stride, weights[k]);
@@ -2135,11 +2161,11 @@ private:
 
 };
 
-// Experimental running product behind prod(). Floating-point multiplication
-// is not associative, so joining the two stack products can disagree with a
-// fresh left-to-right multiplication when zeros, overflow or underflow are
-// involved. worthwhile() therefore keeps this path disabled; the direct
-// kernel preserves the documented forward window order.
+// Running products may regroup ordinary finite factors, but must not change
+// whether a window overflows or underflows. Track a conservative bound on
+// the sum of absolute base-two logarithms, in integer units of 1/1024. Below
+// 512, every subset product stays far from either limit of a normal double.
+// Other windows use the direct kernel, preserving forward multiplication.
 template <bool NA_RM>
 class ProdAccumulator :
   public WindowAccumulator< ProdAccumulator<NA_RM> > {
@@ -2149,7 +2175,8 @@ class ProdAccumulator :
 public:
 
   template <typename Callable>
-  ProdAccumulator(Callable, double const* x, int n) : Base(x, n) {
+  ProdAccumulator(Callable, double const* x, int n)
+    : Base(x, n), defer_direct_(false) {
     if (n > 0) {
       back_.reserve(n);
       suffix_.reserve(n);
@@ -2157,7 +2184,9 @@ public:
     clear();
   }
 
-  static bool worthwhile(int, int, int) { return false; }
+  static bool worthwhile(int n, int by, int) {
+    return incrementalWins(n, by, NA_RM ? 52 : 96, NA_RM ? 32 : 36);
+  }
 
   // products are never differenced, so there is no cancellation to guard;
   // whatever overflows or dies away is remade whole by the next flip
@@ -2171,11 +2200,13 @@ public:
     suffix_.clear();
     back_product_ = 1.0;
     n_na_ = n_nan_ = 0;
+    risk_ = 0;
   }
 
   void add(int i) {
     double value = this->x_[i];
     if (is_nan(value)) { if (ISNA(value)) ++n_na_; else ++n_nan_; return; }
+    risk_ += riskUnits(value);
     back_.push_back(value);
     back_product_ *= value;
   }
@@ -2183,6 +2214,7 @@ public:
   void remove(int i) {
     double value = this->x_[i];
     if (is_nan(value)) { if (ISNA(value)) --n_na_; else --n_nan_; return; }
+    risk_ -= riskUnits(value);
 
     // out of suffixes: flip the back stack into suffix products, oldest on
     // top, so that this and the following removals are single pops
@@ -2209,12 +2241,64 @@ public:
     if (!NA_RM && (n_na_ || n_nan_))
       return n_na_ ? NA_REAL : R_NaN;
 
+    if (needsDirect())
+      return defer_direct_ ? 0.0 : direct_(
+        this->x_, this->start_, this->end_ - this->start_ + 1);
+
     double front = suffix_.empty() ? 1.0 : suffix_.back();
     return front * back_product_;
   }
 
+  void computeStrip(int start, int by, int count, double* out, int stride) {
+    // Batch consecutive exceptional windows into SIMD strips as well,
+    // avoiding a separate scalar calculation for each risky window.
+    defer_direct_ = true;
+    int pending = -1;
+    for (int j = 0; j < count; ++j) {
+      int first = start + j * by;
+      double result = this->compute(first, first + this->n_ - 1);
+      if (needsDirect()) {
+        if (pending < 0) pending = j;
+      } else {
+        if (pending >= 0) {
+          direct_.strip(this->x_, start + pending * by, by, this->n_,
+                        (double const*) NULL, j - pending,
+                        out + pending * stride, stride);
+          pending = -1;
+        }
+        out[j * stride] = result;
+      }
+    }
+    if (pending >= 0)
+      direct_.strip(this->x_, start + pending * by, by, this->n_,
+                    (double const*) NULL, count - pending,
+                    out + pending * stride, stride);
+    defer_direct_ = false;
+  }
+
 private:
 
+  static int riskUnits(double value) {
+    double magnitude = fabs(value);
+    if (magnitude == 0.0 || !is_finite(magnitude))
+      return 1024 * 1024;
+    double distance = fabs(magnitude - 1.0);
+    // On [0.5, 1.5], |log2(x)| <= 4 * |x - 1|. This avoids a
+    // transcendental call for returns and other factors close to one.
+    if (distance <= 0.5)
+      return (int) std::ceil(4096.0 * distance);
+    int exponent;
+    std::frexp(magnitude, &exponent);
+    return 1024 * (magnitude > 1.0 ? exponent : 1 - exponent);
+  }
+
+  bool needsDirect() const {
+    return risk_ >= 512 * 1024 && (NA_RM || !(n_na_ || n_nan_));
+  }
+
+  prod_f<NA_RM> direct_;
+  long long risk_;
+  bool defer_direct_;
   std::vector<double> back_;    // values since the last flip, oldest first
   std::vector<double> suffix_;  // suffix products, the oldest value's on top
   double back_product_;

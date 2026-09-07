@@ -57,10 +57,12 @@ checkRollArgs <- function(n, weights, by, partial, normalize, na.rm,
       value == floor(value)
   }
 
-  if (!isPositiveInteger(n)) {
-    stop(simpleError("'n' should be a positive integer scalar", call))
+  if (is.null(weights)) {
+    if (!isPositiveInteger(n)) {
+      stop(simpleError("'n' should be a positive integer scalar", call))
+    }
+    n <- as.integer(n)
   }
-  n <- as.integer(n)
 
   if (!isPositiveInteger(by)) {
     stop(simpleError("'by' should be a positive integer scalar", call))
@@ -93,11 +95,18 @@ checkRollArgs <- function(n, weights, by, partial, normalize, na.rm,
       warning(simpleWarning("'fill' is ignored when 'partial = TRUE'", call))
   }
 
-  if (!missing_n && !is.null(weights) && weights_n != n) {
-    warning(simpleWarning(sprintf(
-      "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
-      weights_n, n
-    ), call))
+  if (!missing_n && !is.null(weights)) {
+    if (!isPositiveInteger(n)) {
+      warning(simpleWarning(sprintf(
+        "'n' is ignored when 'weights' is supplied; using 'n = %i'",
+        weights_n
+      ), call))
+    } else if (weights_n != n) {
+      warning(simpleWarning(sprintf(
+        "'n' is ignored when 'weights' is supplied; using 'n = %i' rather than 'n = %i'",
+        weights_n, n
+      ), call))
+    }
   }
 
   if (!is.null(weights))
