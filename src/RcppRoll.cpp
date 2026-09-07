@@ -122,16 +122,14 @@ inline void addSummationCorrection(double total, double value, double updated,
 
 // 'normalize' rescales the weights so that they sum to 'n'. Done once here
 // rather than once per column of a matrix, and without touching the caller's
-// vector.
+// vector. An empty result lets dispatch use the original weights directly.
 inline std::vector<double> normalizeWeights(double const* weights,
                                             int weights_n,
                                             int n,
                                             bool normalize) {
 
-  if (!weights_n)
+  if (!weights_n || !normalize)
     return std::vector<double>();
-  if (!normalize)
-    return std::vector<double>(weights, weights + weights_n);
 
   // Scale before summing so multiplying every finite weight by a common
   // factor cannot overflow the total and turn all normalized weights to zero.
@@ -1513,6 +1511,8 @@ public:
 
   // one add and one subtract per observation entering or leaving, against a
   // strip that under na.rm masks each observation, and for a mean counts it
+  // Keep compensation even for a single wide window: direct accumulation
+  // can lose small terms between cancelling large values.
   static bool worthwhile(int n, int by, int) {
     int contiguous = NA_RM ? (IS_MEAN ? 52 : 64) : 128;
     int strided = NA_RM ? (IS_MEAN ? 28 : 36) : 64;
@@ -1618,7 +1618,8 @@ public:
     clear();
   }
 
-  // two running sums against two passes over the window
+  // two running sums against two passes over the window. Keep the scaled
+  // center and compensation for wide windows even when few outputs remain.
   static bool worthwhile(int n, int by, int) {
     return incrementalWins(n, by, 28, 10);
   }
@@ -2204,8 +2205,10 @@ public:
     clear();
   }
 
-  static bool worthwhile(int n, int by, int) {
-    return incrementalWins(n, by, NA_RM ? 52 : 96, NA_RM ? 32 : 36);
+  // A short strip avoids initializing the stacks and scanning the risk bound.
+  static bool worthwhile(int n, int by, int outputs) {
+    return outputs > 16 &&
+      incrementalWins(n, by, NA_RM ? 52 : 96, NA_RM ? 32 : 36);
   }
 
   // products are never differenced, so there is no cancellation to guard;
@@ -2938,9 +2941,11 @@ SEXP roll_with(Callable f,
       uniform_equivalent(f), data, n,
       (double const*) NULL, 0, by, fill, partial, align, threads);
 
+  // Unnormalized weights are read-only throughout dispatch. The .Call
+  // argument keeps their storage alive until all columns and workers finish.
   std::vector<double> scaled =
     normalizeWeights(raw_weights, weights_n, n, normalize);
-  double const* weights_data = scaled.empty() ? NULL : &scaled[0];
+  double const* weights_data = scaled.empty() ? raw_weights : &scaled[0];
 
   return roll_dispatch(
     f, data, n, weights_data, weights_n, by, fill, partial, align, threads);

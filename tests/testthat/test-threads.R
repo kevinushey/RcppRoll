@@ -105,7 +105,10 @@ test_that("results do not depend on the number of threads", {
         roll(m, 100),
         roll(wm, 20),
         roll(wm, 20, partial = TRUE),
-        roll(wm, 20, weights = wweights)
+        roll(wm, 20, weights = wweights),
+        roll(wm, 100),
+        roll(wm, 100, na.rm = TRUE),
+        roll(wm, 20, weights = wweights, normalize = FALSE)
       )
     }
 

@@ -27,6 +27,10 @@
   windows per column, avoiding the cost of building incremental median state
   for too few outputs to benefit from it. (#59)
 
+- `roll_prod()` now uses direct window calculations for calls with at most
+  sixteen outputs per column, avoiding incremental setup for short results.
+  Unnormalized weights are read directly, avoiding a temporary copy.
+
 ## Bug fixes
 
 - Rolling products use forward multiplication for windows at risk of overflow

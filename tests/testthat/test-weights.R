@@ -248,3 +248,37 @@ test_that("weighted roll_median respects na.rm", {
   expect_equal(roll_median(rep(NA_real_, 4), 2, weights = c(1, 1), na.rm = TRUE),
                rep(NA_real_, 3))
 })
+
+test_that("unnormalized weights stay intact across all operations and columns", {
+  ops <- list(sum = roll_sum, mean = roll_mean, min = roll_min, max = roll_max,
+              prod = roll_prod, median = roll_median, var = roll_var, sd = roll_sd)
+  reference <- function(x, w, op) {
+    if (op %in% c("var", "sd")) {
+      center <- sum(w * x) / sum(w)
+      result <- sum(w * (x - center)^2) / (sum(w) - 1)
+      return(if (op == "sd") sqrt(result) else result)
+    }
+    if (op == "median") {
+      order <- order(x)
+      return(x[order][which(cumsum(w[order]) >= sum(w) / 2)[1L]])
+    }
+    get(op, envir = baseenv())(x * w)
+  }
+  # The data and weights deliberately share storage. The median sorts paired
+  # values and weights internally; neither caller-owned vector may be sorted.
+  x <- c(3, 1, 8, 2)
+  w <- x
+  for (op in names(ops)) {
+    f <- ops[[op]]
+    for (na.rm in c(FALSE, TRUE)) {
+      expected <- reference(x, w, op)
+      expect_equal(f(x, weights = w, normalize = FALSE, na.rm = na.rm), expected)
+      matrix_expected <- cbind(expected, reference(rev(x), w, op))
+      expect_equal(unname(f(cbind(x, rev(x)), weights = w,
+                           normalize = FALSE, na.rm = na.rm)),
+                   unname(matrix_expected))
+      expect_identical(x, c(3, 1, 8, 2))
+      expect_identical(w, c(3, 1, 8, 2))
+    }
+  }
+})
