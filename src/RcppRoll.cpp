@@ -120,6 +120,22 @@ inline void addSummationCorrection(double total, double value, double updated,
     compensation += (value - updated) + total;
 }
 
+// Keep an underflowing intermediate ratio out of the normalization. The
+// final multiplication by n can make that weight representable again.
+inline double normalizedWeight(double value, double scale, double total, int n) {
+  double ratio = value / scale;
+  double unit = ratio / total;
+  if (value != 0.0 && (fabs(ratio) < DBL_MIN || fabs(unit) < DBL_MIN)) {
+    int value_exp, scale_exp, total_exp;
+    double value_part = std::frexp(value, &value_exp);
+    double scale_part = std::frexp(scale, &scale_exp);
+    double total_part = std::frexp(total, &total_exp);
+    return std::ldexp((value_part / scale_part) / total_part * n,
+                      value_exp - scale_exp - total_exp);
+  }
+  return unit * n;
+}
+
 // 'normalize' rescales the weights so that they sum to 'n'. Done once here
 // rather than once per column of a matrix, and without touching the caller's
 // vector. An empty result lets dispatch use the original weights directly.
@@ -161,14 +177,14 @@ inline std::vector<double> normalizeWeights(double const* weights,
     Rf_error("'weights' should have a finite, non-zero sum when 'normalize = TRUE'");
 
   for (int i = 0; i < weights_n; ++i) {
-    double value = (weights[i] / scale) / total * n;
+    double value = normalizedWeight(weights[i], scale, total, n);
     if (!std::isfinite(value))
       Rf_error("normalized 'weights' should be finite");
   }
 
   std::vector<double> scaled(weights_n);
   for (int i = 0; i < weights_n; ++i)
-    scaled[i] = (weights[i] / scale) / total * n;
+    scaled[i] = normalizedWeight(weights[i], scale, total, n);
 
   return scaled;
 }

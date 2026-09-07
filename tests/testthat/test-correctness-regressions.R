@@ -184,6 +184,33 @@ test_that("normalizing finite weights is invariant to a huge common scale", {
 
 })
 
+test_that("normalization retains representable subnormal weights", {
+
+  tiny <- .Machine$double.xmin * .Machine$double.eps
+  x <- rep(c(0, 1e300), 20)
+  for (large in c(2, 4, 8)) {
+    weights <- c(large, (large - 1) * tiny)
+    # The sum rounds to 'large'. Multiplying the tiny weight by the final
+    # normalization factor directly rounds only once, after rescaling.
+    normalized <- c(2, weights[2] * (2 / large))
+    for (roll in list(roll_sum, roll_mean, roll_max)) {
+      for (remove in c(FALSE, TRUE)) {
+        expected <- roll(x, weights = normalized, normalize = FALSE,
+                         na.rm = remove)
+        actual <- roll(x, weights = weights, na.rm = remove)
+        # Ratios detect losing a tiny result that absolute tolerances hide.
+        expect_equal(actual / expected, rep(1, length(expected)))
+        expect_equal(
+          unname(roll(cbind(x, x), weights = weights, na.rm = remove)) /
+            unname(cbind(expected, expected)),
+          matrix(1, length(expected), 2)
+        )
+      }
+    }
+  }
+
+})
+
 test_that("weighted extrema handle missing products consistently", {
 
   for (roll in list(roll_min, roll_max)) {

@@ -47,8 +47,9 @@
 
 - Large finite values no longer overflow the intermediate sum used for means,
   median midpoints, or centering variance and standard deviation calculations.
-  Normalizing finite weights now tolerates a huge common scale, and frequency
-  weights avoid unnecessary overflow or underflow in variance contributions.
+  Normalizing finite weights now tolerates a huge common scale and preserves
+  representable subnormal weights through rescaling. Frequency weights avoid
+  unnecessary overflow or underflow in variance contributions.
   Squared deviations can still overflow, including when the final standard
   deviation would be representable.
 
