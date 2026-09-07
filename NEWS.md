@@ -31,6 +31,13 @@
   sixteen outputs per column, avoiding incremental setup for short results.
   Unnormalized weights are read directly, avoiding a temporary copy.
 
+- Ordinary variance and standard deviation use bounded arithmetic,
+  retaining the scaled calculation for extreme inputs and poorly centered
+  windows. Weighted extrema classify inputs once per work chunk, and means
+  finalize ordinary windows together, reducing the cost of numerical and
+  missing-value safeguards on large vectors with small weight vectors. Input
+  checks run within the existing work chunks so they benefit from OpenMP too.
+
 ## Bug fixes
 
 - Rolling products use forward multiplication for windows at risk of overflow

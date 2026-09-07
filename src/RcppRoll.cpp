@@ -386,9 +386,9 @@ struct OnePass {
 // accumulators do.
 inline double missing_kind(double const* window, int n, double const* weights) {
   for (int k = 0; k < n; ++k) {
-    if (ISNA(window[k]))
+    if (is_nan(window[k]) && ISNA(window[k]))
       return NA_REAL;
-    if (weights && ISNA(weights[k]))
+    if (weights && is_nan(weights[k]) && ISNA(weights[k]))
       return NA_REAL;
   }
   return R_NaN;
@@ -549,15 +549,16 @@ struct SumKernel : OnePass {
 // used, so ties -- and with them the sign of a zero -- resolve as before: min
 // keeps the earlier of two equal values, max the later. A NaN loses every
 // comparison and so drops out on its own. Without na.rm, each lane records
-// whether it saw NA or an ordinary NaN; weighted calls inspect the product,
-// since two individually non-missing inputs can still form 0 * Inf.
-template <bool NA_RM, bool IS_MIN>
+// whether it saw a missing result; the rare finish path classifies NA versus
+// NaN. Weighted calls inspect the product, since 0 * Inf is also missing.
+template <bool NA_RM, bool IS_MIN, bool CHECK_MISSING = true,
+          bool ONLY_NA = false>
 struct ExtremumKernel : OnePass {
 
   template <int T>
   struct State {
     double value[T];
-    char missing[T];
+    long long missing[T];
   };
 
   template <int T>
@@ -572,11 +573,8 @@ struct ExtremumKernel : OnePass {
   static void step(State<T>& s, double const* p, int stride) {
     for (int t = 0; t < T; ++t) {
       double value = p[t * stride];
-      if (!NA_RM && is_nan(value)) {
-        char kind = ISNA(value) ? 2 : 1;
-        if (kind > s.missing[t])
-          s.missing[t] = kind;
-      }
+      if (!NA_RM && CHECK_MISSING)
+        s.missing[t] |= is_nan(value);
       s.value[t] = select(value, s.value[t]);
     }
   }
@@ -586,11 +584,8 @@ struct ExtremumKernel : OnePass {
     for (int t = 0; t < T; ++t) {
       double value = p[t * stride];
       double candidate = value * weight;
-      if (!NA_RM && is_nan(candidate)) {
-        char kind = ISNA(value) || ISNA(weight) ? 2 : 1;
-        if (kind > s.missing[t])
-          s.missing[t] = kind;
-      }
+      if (!NA_RM && CHECK_MISSING)
+        s.missing[t] |= is_nan(ONLY_NA ? value : candidate);
       s.value[t] = select(candidate, s.value[t]);
     }
   }
@@ -598,12 +593,12 @@ struct ExtremumKernel : OnePass {
   template <int T>
   static double finish(State<T> const& s,
                        int t,
-                       int,
-                       double const*,
-                       double const*,
+                       int n,
+                       double const* window,
+                       double const* weights,
                        bool) {
-    if (!NA_RM && s.missing[t])
-      return s.missing[t] == 2 ? NA_REAL : R_NaN;
+    if (!NA_RM && CHECK_MISSING && s.missing[t])
+      return ONLY_NA ? NA_REAL : missing_kind(window, n, weights);
     return s.value[t];
   }
 
@@ -834,25 +829,29 @@ struct VarKernel {
                        bool) {
 
     double count = weights ? s.count[t] : s.weight_total[t];
+    double unit = weights ? 1.0 / s.weight_scale[t] : 1.0;
+    return finish_moments(count, s.weight_total[t], unit,
+                          s.squares[t], s.residual[t], n);
+  }
+
+  static double finish_moments(double count, double weight, double unit,
+                               double squares, double residual, int n) {
     if (!NA_RM && count != n)
       return NA_REAL;
 
     // NA for fewer than two values, matching var() on a vector of length 0 or
     // 1; a weight total that is zero or negative (possible with 'normalize =
     // FALSE', or after dropping NAs) has no meaningful answer either
-    double weight = s.weight_total[t];
-    double unit = weights ? 1.0 / s.weight_scale[t] : 1.0;
     double result;
     if (count < 2 || !(weight > unit)) {
       result = NA_REAL;
-    } else if (s.squares[t] == R_PosInf) {
+    } else if (squares == R_PosInf) {
       // the deviations squared past what a double can hold, so the variance
       // is out of range too -- and the correction would only turn it into a
       // NaN
       result = R_PosInf;
     } else {
-      double total =
-        s.squares[t] - s.residual[t] * (s.residual[t] / weight);
+      double total = squares - residual * (residual / weight);
       if (total < 0.0) total = 0.0;
       result = total / (weight - unit);
     }
@@ -860,6 +859,109 @@ struct VarKernel {
     return IS_SD ? window_sqrt(result) : result;
   }
 
+};
+
+// The ordinary variance kernel shares the state, unweighted steps, and
+// result semantics with the general kernel. The chunk's input check bounds
+// the data and weights, so its products and sums cannot overflow.
+template <bool NA_RM, bool IS_SD>
+struct OrdinaryVarKernel : VarKernel<NA_RM, IS_SD> {
+  typedef VarKernel<NA_RM, IS_SD> Base;
+  using Base::step;
+  using Base::step2;
+
+  template <int T>
+  static void step(typename Base::template State<T>& s, double const* p,
+                   int stride, double weight) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      bool ok = !is_nan(value);
+      double w = ok ? weight : 0.0;
+      double v = ok ? value : 0.0;
+      s.total[t] += w * v;
+      s.weight_total[t] += ok ? weight : -0.0;
+      s.count[t] += ok ? 1.0 : 0.0;
+    }
+  }
+
+  template <int T>
+  static void prepare(typename Base::template State<T>& s, int,
+                      double const*, int, double const*) {
+    for (int t = 0; t < T; ++t)
+      s.mean[t] = s.total[t] / s.weight_total[t];
+  }
+
+  template <int T>
+  static void step2(typename Base::template State<T>& s, double const* p,
+                    int stride, double weight) {
+    for (int t = 0; t < T; ++t) {
+      double value = p[t * stride];
+      bool ok = !is_nan(value);
+      double w = ok ? weight : 0.0;
+      double difference = ok ? value - s.mean[t] : 0.0;
+      s.squares[t] += w * difference * difference;
+      s.residual[t] += w * difference;
+    }
+  }
+
+  template <int T>
+  static double finish(typename Base::template State<T> const& s, int t,
+                       int n, double const*, double const* weights, bool) {
+    double count = weights ? s.count[t] : s.weight_total[t];
+    return Base::finish_moments(count, s.weight_total[t], 1.0,
+                                s.squares[t], s.residual[t], n);
+  }
+
+};
+
+// Most kernels finalize lanes independently. Means first divide all lanes
+// together so their rare overflow fallback does not inhibit vectorization.
+template <typename Kernel>
+struct FinishWindows {
+  template <int T>
+  static void run(typename Kernel::template State<T> const& s,
+                  int n, double const* p, int stride,
+                  double const* weights, bool normalize,
+                  double* out, int stride_out) {
+    for (int t = 0; t < T; ++t)
+      out[t * stride_out] =
+        Kernel::finish(s, t, n, p + t * stride, weights, normalize);
+  }
+};
+
+template <bool NA_RM>
+struct FinishWindows< SumKernel<NA_RM, true> > {
+  template <int T>
+  static void run(typename SumKernel<NA_RM, true>::template State<T> const& s,
+                  int n, double const* p, int stride,
+                  double const* weights, bool normalize,
+                  double* out, int stride_out) {
+    for (int t = 0; t < T; ++t) {
+      double denominator = !NA_RM ? (double) n :
+        (weights && normalize ? s.weight_total[t] : (double) s.count[t]);
+      out[t * stride_out] = s.total[t] / denominator;
+    }
+    bool ordinary = true;
+    for (int t = 0; t < T; ++t)
+      ordinary &= is_finite(s.total[t]);
+    if (ordinary) return;
+    for (int t = 0; t < T; ++t) {
+      if (!is_finite(s.total[t]))
+        out[t * stride_out] = SumKernel<NA_RM, true>::finish(
+          s, t, n, p + t * stride, weights, normalize);
+    }
+  }
+};
+
+template <bool NA_RM, bool IS_SD>
+struct FinishWindows< OrdinaryVarKernel<NA_RM, IS_SD> > {
+  // Defined after Reduction to reuse the general calculation for windows
+  // whose rounded center would cause substantial cancellation.
+  template <int T>
+  static void run(typename VarKernel<NA_RM, IS_SD>::template State<T> const& s,
+                  int n, double const* p, int stride,
+                  double const* weights, bool normalize,
+                  double* out, int stride_out);
 };
 
 // Drives a kernel over one window, or over a strip of them. A strip walks
@@ -964,14 +1066,122 @@ private:
       }
     }
 
-    for (int t = 0; t < T; ++t)
-      out[t * stride_out] =
-        Kernel::finish(state, t, n, p + t * stride, weights, normalize_);
+    FinishWindows<Kernel>::template run<T>(
+      state, n, p, stride, weights, normalize_, out, stride_out);
 
   }
 
   bool normalize_;
 
+};
+
+template <bool NA_RM, bool IS_SD>
+template <int T>
+void FinishWindows< OrdinaryVarKernel<NA_RM, IS_SD> >::run(
+    typename VarKernel<NA_RM, IS_SD>::template State<T> const& s,
+    int n, double const* p, int stride, double const* weights, bool normalize,
+    double* out, int stride_out) {
+  typedef VarKernel<NA_RM, IS_SD> Base;
+  for (int t = 0; t < T; ++t)
+    out[t * stride_out] = OrdinaryVarKernel<NA_RM, IS_SD>::finish(
+      s, t, n, p + t * stride, weights, normalize);
+  bool ordinary = true;
+  for (int t = 0; t < T; ++t) {
+    // The dispatch bounds also keep these cross-products in range. Compare
+    // them directly to avoid a second division for every output window.
+    ordinary &= !(s.residual[t] * s.residual[t] >
+                   (0.25 * s.weight_total[t]) * s.squares[t]);
+  }
+  if (ordinary) return;
+  for (int t = 0; t < T; ++t) {
+    if (s.residual[t] * s.residual[t] >
+          (0.25 * s.weight_total[t]) * s.squares[t])
+      out[t * stride_out] = Reduction<Base>()(p, t * stride, weights, n);
+  }
+}
+
+// Select arithmetic within the existing work chunks. Scans then run on the
+// same workers as the windows they protect, and an exceptional observation
+// only sends its own chunk through the general kernel.
+enum KernelKind { GENERAL_KERNEL, ORDINARY_KERNEL, NA_KERNEL };
+
+template <bool NA_RM, bool IS_SD>
+struct VarianceKernels {
+  typedef VarKernel<NA_RM, IS_SD> General;
+  typedef OrdinaryVarKernel<NA_RM, IS_SD> Ordinary;
+  typedef Ordinary Missing;
+
+  static KernelKind select(double const* x, int size,
+                            double const* weights, int n) {
+    // Frequency weights are already validated. These conservative bounds
+    // keep sums, moments, and their cross-products in range for int-sized
+    // windows. Tiny weight ratios retain the scaled calculation.
+    if (weights) {
+      for (int i = 0; i < n; ++i) {
+        double w = weights[i];
+        if (w != 0.0 && (w < 1e-50 || w > 1e50)) return GENERAL_KERNEL;
+      }
+    }
+    bool ordinary = true;
+    for (int i = 0; i < size; ++i) {
+      double magnitude = fabs(x[i]);
+      // Comparisons with NaN are false: missing observations are eligible.
+      ordinary &= !((magnitude != 0.0 && magnitude < 1e-50) || magnitude > 1e50);
+    }
+    return ordinary ? ORDINARY_KERNEL : GENERAL_KERNEL;
+  }
+};
+
+template <bool NA_RM, bool IS_MIN>
+struct ExtremumKernels {
+  typedef ExtremumKernel<NA_RM, IS_MIN> General;
+  typedef ExtremumKernel<NA_RM, IS_MIN, false> Ordinary;
+  typedef ExtremumKernel<NA_RM, IS_MIN, true, true> Missing;
+
+  static KernelKind select(double const* x, int size,
+                            double const* weights, int n) {
+    if (NA_RM || !weights) return GENERAL_KERNEL;
+    for (int i = 0; i < n; ++i)
+      if (!is_finite(weights[i])) return GENERAL_KERNEL;
+    // Finite factors can overflow to infinity, but never produce a NaN.
+    bool finite = true;
+    for (int i = 0; i < size; ++i) finite &= is_finite(x[i]);
+    if (finite) return ORDINARY_KERNEL;
+    // If NA is the only non-finite input, every missing product is NA.
+    // Classify once here instead of rescanning each overlapping window.
+    for (int i = 0; i < size; ++i)
+      if (!is_finite(x[i]) && !ISNA(x[i])) return GENERAL_KERNEL;
+    return NA_KERNEL;
+  }
+};
+
+template <typename Kernels>
+struct AdaptiveReduction : Reduction<typename Kernels::General> {
+  typedef Reduction<typename Kernels::General> Base;
+
+  // These variance/extremum kernels consume the prepared weights directly;
+  // their results do not depend on Reduction's mean-normalization flag.
+  void strip(double const* x, int start, int by, int n,
+             double const* weights, int count, double* out, int stride) const {
+    if (!count) return;
+    // Do not scan gaps between disjoint windows: that could cost more than
+    // evaluating all of the requested windows with the general kernel.
+    if (by > n) {
+      Base::strip(x, start, by, n, weights, count, out, stride);
+      return;
+    }
+    // Validated window geometry bounds this span by the input length.
+    int size = (count - 1) * by + n;
+    KernelKind kind = Kernels::select(x + start, size, weights, n);
+    if (kind == ORDINARY_KERNEL)
+      Reduction<typename Kernels::Ordinary>().strip(
+        x, start, by, n, weights, count, out, stride);
+    else if (kind == NA_KERNEL)
+      Reduction<typename Kernels::Missing>().strip(
+        x, start, by, n, weights, count, out, stride);
+    else
+      Base::strip(x, start, by, n, weights, count, out, stride);
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -990,19 +1200,19 @@ template <bool NA_RM>
 struct sum_f : Reduction< SumKernel<NA_RM, false> > {};
 
 template <bool NA_RM>
-struct min_f : Reduction< ExtremumKernel<NA_RM, true> > {};
+struct min_f : AdaptiveReduction< ExtremumKernels<NA_RM, true> > {};
 
 template <bool NA_RM>
-struct max_f : Reduction< ExtremumKernel<NA_RM, false> > {};
+struct max_f : AdaptiveReduction< ExtremumKernels<NA_RM, false> > {};
 
 template <bool NA_RM>
 struct prod_f : Reduction< ProdKernel<NA_RM> > {};
 
 template <bool NA_RM>
-struct var_f : Reduction< VarKernel<NA_RM, false> > {};
+struct var_f : AdaptiveReduction< VarianceKernels<NA_RM, false> > {};
 
 template <bool NA_RM>
-struct sd_f : Reduction< VarKernel<NA_RM, true> > {};
+struct sd_f : AdaptiveReduction< VarianceKernels<NA_RM, true> > {};
 
 // Variance treats weights as repeat counts, for which negative or non-finite
 // values have no statistical meaning. Other operations retain their broader
