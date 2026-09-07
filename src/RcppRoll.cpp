@@ -176,15 +176,27 @@ inline std::vector<double> normalizeWeights(double const* weights,
   if (total == 0.0 || !std::isfinite(total))
     Rf_error("'weights' should have a finite, non-zero sum when 'normalize = TRUE'");
 
+  bool underflow = false;
   for (int i = 0; i < weights_n; ++i) {
-    double value = normalizedWeight(weights[i], scale, total, n);
+    double ratio = weights[i] / scale;
+    double unit = ratio / total;
+    double value = unit * n;
+    underflow |= weights[i] != 0.0 &&
+      (fabs(ratio) < DBL_MIN || fabs(unit) < DBL_MIN);
     if (!std::isfinite(value))
       Rf_error("normalized 'weights' should be finite");
   }
 
   std::vector<double> scaled(weights_n);
   for (int i = 0; i < weights_n; ++i)
-    scaled[i] = normalizedWeight(weights[i], scale, total, n);
+    scaled[i] = (weights[i] / scale) / total * n;
+
+  // Keep exponent recovery outside the ordinary normalization loops so the
+  // compiler can still vectorize their divisions and stores. These tiny
+  // intermediate ratios cannot overflow after recovery for int-sized n.
+  if (underflow)
+    for (int i = 0; i < weights_n; ++i)
+      scaled[i] = normalizedWeight(weights[i], scale, total, n);
 
   return scaled;
 }
@@ -475,8 +487,8 @@ struct SumKernel : OnePass {
     // Dropping dominant weights can leave a tiny denominator. A rounded
     // subnormal numerator then loses digits that division would restore.
     return NA_RM && IS_MEAN && weights && normalize &&
-      s.weight_total[t] != 0.0 && fabs(s.weight_total[t]) < 1.0 &&
-      fabs(s.total[t]) < DBL_MIN;
+      fabs(s.total[t]) < DBL_MIN &&
+      s.weight_total[t] != 0.0 && fabs(s.weight_total[t]) < 1.0;
   }
 
   // without na.rm, 'normalize' has already made the weights sum to n
