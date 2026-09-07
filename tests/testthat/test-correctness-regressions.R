@@ -203,6 +203,18 @@ test_that("weighted extrema handle missing products consistently", {
     value <- roll(1:3, weights = c(NaN, NA_real_, 1), normalize = FALSE)
     expect_true(is.na(value) && !is.nan(value))
 
+    # Classify the operands, not the hardware-dependent NaN payload of
+    # their product. Exercise both NA * NaN and NaN * NA explicitly.
+    for (pair in list(c(NA_real_, NaN), c(NaN, NA_real_))) {
+      x <- c(1, pair[1L], 3)
+      weights <- c(1, pair[2L], 1)
+      expect_identical(roll(x, weights = weights, normalize = FALSE), NA_real_)
+      expect_identical(
+        roll(x, weights = weights, normalize = FALSE, na.rm = TRUE),
+        if (identical(roll, roll_min)) 1 else 3
+      )
+    }
+
     expect_equal(
       roll(1:2, weights = c(NA_real_, 1), normalize = FALSE, na.rm = TRUE),
       2

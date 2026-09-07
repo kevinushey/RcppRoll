@@ -98,8 +98,15 @@ test_that("extrema strips distinguish missing products after the reduction", {
     for (f in list(roll_min, roll_max)) {
       reference <- if (identical(f, roll_min)) min else max
       for (remove in c(FALSE, TRUE)) {
-        expected <- vapply(seq_len(length(x) - 3L), function(i)
-          reference(x[i:(i + 3L)] * w, na.rm = remove), numeric(1))
+        expected <- vapply(seq_len(length(x) - 3L), function(i) {
+          window <- x[i:(i + 3L)]
+          # NaN * NA can lose the NA payload on x86. Preserve genuine NAs
+          # from either operand before multiplying, as the API requires.
+          if (!remove && (any(is.na(window) & !is.nan(window)) ||
+                            any(is.na(w) & !is.nan(w))))
+            return(NA_real_)
+          reference(window * w, na.rm = remove)
+        }, numeric(1))
         actual <- f(x, weights = w, normalize = FALSE, na.rm = remove)
         expect_equal(actual, expected)
         expect_identical(is.nan(actual), is.nan(expected))
