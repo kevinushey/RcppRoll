@@ -110,6 +110,16 @@ inline int rollOutputSize(int x_n, int n, int by, Fill const& fill, bool partial
   return (x_n - n) / by + 1;
 }
 
+// Neumaier's rounding correction for an already-computed sum. Callers decide
+// how to handle overflow before using the correction.
+inline void addSummationCorrection(double total, double value, double updated,
+                                   double& compensation) {
+  if (fabs(total) >= fabs(value))
+    compensation += (total - updated) + value;
+  else
+    compensation += (value - updated) + total;
+}
+
 // 'normalize' rescales the weights so that they sum to 'n'. Done once here
 // rather than once per column of a matrix, and without touching the caller's
 // vector.
@@ -144,10 +154,7 @@ inline std::vector<double> normalizeWeights(double const* weights,
   for (int i = 0; i < weights_n; ++i) {
     double value = weights[i] / scale;
     double updated = total + value;
-    if (fabs(total) >= fabs(value))
-      compensation += (total - updated) + value;
-    else
-      compensation += (value - updated) + total;
+    addSummationCorrection(total, value, updated, compensation);
     total = updated;
   }
   total += compensation;
@@ -224,10 +231,7 @@ inline double scaled_weighted_mean(double const* x,
     double weight = std::frexp(weights[i], &weight_exp);
     double term = std::ldexp(value * weight, value_exp + weight_exp - scale);
     double updated = total + term;
-    if (fabs(total) >= fabs(term))
-      compensation += (total - updated) + term;
-    else
-      compensation += (term - updated) + total;
+    addSummationCorrection(total, term, updated, compensation);
     total = updated;
   }
   return std::ldexp((total + compensation) / denominator, scale);
@@ -275,6 +279,8 @@ public:
   void add(double value) {
     double updated = total_ + value;
     if (is_finite(updated)) {
+      // Keep the correction local in this hot path: extracting it into the
+      // shared helper slowed the rolling sum/mean benchmarks with Clang.
       if (fabs(total_) >= fabs(value))
         compensation_ += (total_ - updated) + value;
       else
@@ -318,6 +324,35 @@ private:
   double total_;
   double compensation_;
   double magnitude_;
+
+};
+
+// Sum relative to the largest observed magnitude so a mean can be formed
+// without overflowing its numerator. Callers retain their own rules for
+// filtering missing or non-finite observations and counting contributions.
+class ScaledSum {
+
+public:
+
+  ScaledSum() : total_(0.0), scale_(0.0) {}
+
+  void add(double value) {
+    double magnitude = fabs(value);
+    if (magnitude > scale_) {
+      total_ *= scale_ / magnitude;
+      scale_ = magnitude;
+    }
+    total_ += scale_ != 0.0 ? value / scale_ : value;
+  }
+
+  double mean(double count) const {
+    return (total_ / count) * scale_;
+  }
+
+private:
+
+  double total_;
+  double scale_;
 
 };
 
@@ -495,10 +530,7 @@ struct SumKernel : OnePass {
         term *= weights[k];
       }
       double updated = scaled_total + term;
-      if (fabs(scaled_total) >= fabs(term))
-        compensation += (scaled_total - updated) + term;
-      else
-        compensation += (term - updated) + scaled_total;
+      addSummationCorrection(scaled_total, term, updated, compensation);
       scaled_total = updated;
     }
     scaled_total += compensation;
@@ -747,19 +779,13 @@ struct VarKernel {
         // Ordinary windows need only additions in the first pass. Re-read
         // exceptional lanes when the total overflowed or is large enough
         // that rounding the mean could overflow its squared deviations.
-        double total = 0.0;
-        double scale = 0.0;
+        ScaledSum total;
         for (int k = 0; k < n; ++k) {
           double value = p[t * stride + k];
           if (is_nan(value)) continue;
-          double magnitude = fabs(value);
-          if (magnitude > scale) {
-            total *= scale / magnitude;
-            scale = magnitude;
-          }
-          total += scale != 0.0 ? value / scale : value;
+          total.add(value);
         }
-        s.mean[t] = (total / s.weight_total[t]) * scale;
+        s.mean[t] = total.mean(s.weight_total[t]);
       }
     }
   }
@@ -1622,22 +1648,16 @@ public:
   // well conditioned; add() would otherwise fall back on the first value it
   // saw, which can sit arbitrarily far from the mean.
   void prepare(int start, int end) {
-    double scale = 0.0;
-    double scaled_total = 0.0;
+    ScaledSum total;
     int count = 0;
     for (int i = start; i <= end; ++i) {
       double value = this->x_[i];
       if (is_finite(value)) {
-        double magnitude = fabs(value);
-        if (magnitude > scale) {
-          scaled_total *= scale / magnitude;
-          scale = magnitude;
-        }
-        scaled_total += scale != 0.0 ? value / scale : value;
+        total.add(value);
         ++count;
       }
     }
-    shift_ = count ? (scaled_total / count) * scale : 0.0;
+    shift_ = count ? total.mean(count) : 0.0;
     have_shift_ = true;
   }
 
@@ -2254,25 +2274,24 @@ public:
     // avoiding a separate scalar calculation for each risky window.
     defer_direct_ = true;
     int pending = -1;
+    auto flush = [&](int end) {
+      if (pending < 0) return;
+      direct_.strip(this->x_, start + pending * by, by, this->n_,
+                    (double const*) NULL, end - pending,
+                    out + pending * stride, stride);
+      pending = -1;
+    };
     for (int j = 0; j < count; ++j) {
       int first = start + j * by;
       double result = this->compute(first, first + this->n_ - 1);
       if (needsDirect()) {
         if (pending < 0) pending = j;
       } else {
-        if (pending >= 0) {
-          direct_.strip(this->x_, start + pending * by, by, this->n_,
-                        (double const*) NULL, j - pending,
-                        out + pending * stride, stride);
-          pending = -1;
-        }
+        flush(j);
         out[j * stride] = result;
       }
     }
-    if (pending >= 0)
-      direct_.strip(this->x_, start + pending * by, by, this->n_,
-                    (double const*) NULL, count - pending,
-                    out + pending * stride, stride);
+    flush(count);
     defer_direct_ = false;
   }
 
