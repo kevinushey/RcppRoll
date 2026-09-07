@@ -40,6 +40,9 @@
 
 ## Bug fixes
 
+- Normalized weighted means retain representable results when removing
+  missing observations leaves tiny weights whose products underflow.
+
 - Rolling products use forward multiplication for windows at risk of overflow
   or underflow, including zeros and infinities. Ordinary windows retain the
   incremental two-stack path; regrouping can change rounding in the low bits.

@@ -211,6 +211,29 @@ test_that("normalization retains representable subnormal weights", {
 
 })
 
+test_that("normalized means recover underflow after dropping dominant weights", {
+
+  cases <- list(c(1e-30, 1e-300), c(1e-300, 1e-30),
+                c(1e-16, 1e-308), c(1e-30, 1e-320))
+  for (case in cases) {
+    scale <- case[1]
+    weights <- c(1, case[2], 2 * case[2])
+    x <- rep(c(NA_real_, scale, 2 * scale), 20)
+    expected <- 5 / 3 * scale
+    actual <- roll_mean(x, weights = weights, by = 3, na.rm = TRUE)
+    expect_equal(actual / expected, rep(1, 20))
+    expect_equal(
+      unname(roll_mean(cbind(x, x), weights = weights, by = 3,
+                      na.rm = TRUE)) / expected,
+      matrix(1, 20, 2)
+    )
+    expect_equal(roll_mean(x[1:3], weights = weights, na.rm = TRUE) /
+                   expected, 1)
+    expect_true(all(is.na(roll_mean(x, weights = weights))))
+  }
+
+})
+
 test_that("weighted extrema handle missing products consistently", {
 
   for (roll in list(roll_min, roll_max)) {

@@ -215,8 +215,9 @@ inline double midpoint(double lower, double upper) {
 }
 
 // Exceptional path for a mean of finite weighted products whose direct sum
-// overflowed. Keep the products' common power of two outside the sum: neither
-// forming a product nor restoring its scale may precede the final division.
+// overflowed or underflowed. Keep the products' common power of two outside
+// the sum: neither forming a product nor restoring its scale may precede
+// the final division.
 // Missing observations have already been validated and can only remain here
 // under na.rm.
 inline double scaled_weighted_mean(double const* x,
@@ -248,7 +249,10 @@ inline double scaled_weighted_mean(double const* x,
     addSummationCorrection(total, term, updated, compensation);
     total = updated;
   }
-  return std::ldexp((total + compensation) / denominator, scale);
+  int denominator_exp;
+  double denominator_part = std::frexp(denominator, &denominator_exp);
+  return std::ldexp((total + compensation) / denominator_part,
+                    scale - denominator_exp);
 }
 
 // Whether every weight is the same, making the weighted call the unweighted
@@ -465,6 +469,16 @@ struct SumKernel : OnePass {
     }
   }
 
+  template <int T>
+  static bool underflowedMean(State<T> const& s, int t,
+                              double const* weights, bool normalize) {
+    // Dropping dominant weights can leave a tiny denominator. A rounded
+    // subnormal numerator then loses digits that division would restore.
+    return NA_RM && IS_MEAN && weights && normalize &&
+      s.weight_total[t] != 0.0 && fabs(s.weight_total[t]) < 1.0 &&
+      fabs(s.total[t]) < DBL_MIN;
+  }
+
   // without na.rm, 'normalize' has already made the weights sum to n
   template <int T>
   static double finish(State<T> const& s,
@@ -503,7 +517,8 @@ struct SumKernel : OnePass {
     }
 
     double result = total / denominator;
-    if (is_finite(result) || is_finite(total))
+    bool underflow = underflowedMean(s, t, weights, normalize);
+    if (!underflow && (is_finite(result) || is_finite(total)))
       return result;
 
     // Summing finite values can overflow even where their mean is in range.
@@ -524,7 +539,7 @@ struct SumKernel : OnePass {
     if (scale == 0.0 || !is_finite(denominator))
       return result;
 
-    if (weights && !normalize)
+    if (underflow || (weights && !normalize))
       return scaled_weighted_mean(window, weights, n, denominator);
 
     double scaled_total = 0.0;
@@ -959,10 +974,12 @@ struct FinishWindows< SumKernel<NA_RM, true> > {
     }
     bool ordinary = true;
     for (int t = 0; t < T; ++t)
-      ordinary &= is_finite(s.total[t]);
+      ordinary &= is_finite(s.total[t]) &&
+        !SumKernel<NA_RM, true>::underflowedMean(s, t, weights, normalize);
     if (ordinary) return;
     for (int t = 0; t < T; ++t) {
-      if (!is_finite(s.total[t]))
+      if (!is_finite(s.total[t]) ||
+          SumKernel<NA_RM, true>::underflowedMean(s, t, weights, normalize))
         out[t * stride_out] = SumKernel<NA_RM, true>::finish(
           s, t, n, p + t * stride, weights, normalize);
     }
